@@ -1,0 +1,139 @@
+interface EntradaSinonimo {
+  canonico: string;
+  variantes: string[];
+}
+
+// Núcleo documentado em formato-cifra.md, mais os rótulos que o achado
+// encontrou repetidos no acervo real (Intro/Solo com várias grafias).
+// "Verso N" e "Ponte N" têm número dinâmico — tratados à parte, por regex,
+// não entram nesta tabela.
+const TABELA: EntradaSinonimo[] = [
+  { canonico: 'Intro', variantes: ['intro', 'introdução', 'introducao'] },
+  { canonico: 'Interlúdio', variantes: ['interlúdio', 'interludio'] },
+  { canonico: 'Modulação', variantes: ['modulação', 'modulacao'] },
+  { canonico: 'Pré-refrão', variantes: ['pré-refrão', 'pre-refrao', 'prerrefrao'] },
+  { canonico: 'Refrão', variantes: ['refrão', 'refrao'] },
+  { canonico: 'Ponte', variantes: ['ponte'] },
+  { canonico: 'Rampa', variantes: ['rampa'] },
+  { canonico: 'Tag', variantes: ['tag'] },
+  { canonico: 'Solo', variantes: ['solo', 'só piano', 'so piano'] },
+  { canonico: 'Instrumental', variantes: ['instrumental'] },
+  { canonico: 'Versos', variantes: ['versos'] },
+  { canonico: 'Pontes', variantes: ['pontes'] },
+  { canonico: 'Transição', variantes: ['transição', 'transicao'] },
+  { canonico: 'Final', variantes: ['final', 'fim'] },
+];
+
+// Separador entre a palavra-base e o número aceita espaço, "_" ou "-" —
+// "estrofe_1" (achado real) usa "_", "verso 1" usa espaço.
+const RE_VERSO_OU_PONTE_NUMERADO = /^(verso|estrofe|ponte)[\s_-]*(\d+)$/i;
+
+const RE_DIACRITICOS = new RegExp('[\\u0300-\\u036f]', 'g');
+
+function semAcento(texto: string): string {
+  return texto.normalize('NFD').replace(RE_DIACRITICOS, '');
+}
+
+function casarSinonimo(conteudo: string): { rotulo: string; reconhecido: boolean } {
+  const trimado = conteudo.trim();
+
+  const numerado = RE_VERSO_OU_PONTE_NUMERADO.exec(trimado);
+  if (numerado) {
+    const base = numerado[1]!.toLowerCase();
+    const canonico = base === 'ponte' ? 'Ponte' : 'Verso'; // "verso" e "estrofe" são o mesmo conceito
+    return { rotulo: `${canonico} ${numerado[2]}`, reconhecido: true };
+  }
+
+  const normalizadoBusca = semAcento(trimado).toLowerCase();
+  for (const entrada of TABELA) {
+    for (const variante of entrada.variantes) {
+      const varianteBusca = semAcento(variante).toLowerCase();
+      if (normalizadoBusca === varianteBusca) {
+        return { rotulo: entrada.canonico, reconhecido: true };
+      }
+      if (normalizadoBusca.startsWith(varianteBusca + ' ')) {
+        const resto = trimado.slice(variante.length).trim();
+        return { rotulo: `${entrada.canonico} ${resto}`, reconhecido: true };
+      }
+    }
+  }
+
+  return { rotulo: trimado, reconhecido: false };
+}
+
+// Rótulos "instrumentais" do formato-cifra.md, mais Final — achado real
+// (ESTAMOS DE PÉ) mostrou que ele se comporta igual: cifra vem na própria
+// linha do marcador, nunca tem letra abaixo. Diferente de Verso/Refrão/
+// Ponte/etc, que esperam corpo abaixo e cujo marcador sozinho, sem nada
+// depois, é sinal de seção só-referência (ver materializacaoSecoes.ts).
+const ROTULOS_SEM_CORPO_ABAIXO = new Set(['Intro', 'Interlúdio', 'Modulação', 'Final']);
+
+/**
+ * true quando o rótulo canônico (`[Verso 2]`, `[Refrão]`...) é de um tipo
+ * que normalmente tem letra/cifra abaixo dele — usado para distinguir
+ * "seção vazia porque é referência a outra" de "seção instrumental que
+ * nunca teve corpo, por definição" (`[Intro]`, `[Final]`...).
+ */
+export function esperaCorpoAbaixo(rotuloComColchetes: string): boolean {
+  const m = /^\[([^\]]*)\]/.exec(rotuloComColchetes.trim());
+  if (!m) return true;
+  const base = m[1]!.replace(/\s+\d+$/, '').trim();
+  return !ROTULOS_SEM_CORPO_ABAIXO.has(base);
+}
+
+export interface ResultadoNormalizacaoSubtitulo {
+  /** Texto final, já entre colchetes — pronto para virar uma linha de subtítulo do `.cifra`. */
+  texto: string;
+  /** false quando o rótulo não bateu com nenhum sinônimo conhecido e foi preservado como veio. */
+  reconhecido: boolean;
+}
+
+const RE_DOIS_PONTOS = /^([^:{}[\]]+):(.*)$/;
+
+/**
+ * Normaliza um rótulo de seção cru do acervo (`INTRO`, `Introdução:`,
+ * `{intro}`, `[Intro teclado]`, `Todos`, `Introdução: | A | % | ... |`...)
+ * para a forma canônica `[Rótulo]` usada no `.cifra`. Sinônimo bate inteiro
+ * ou como prefixo de palavra — nesse caso o restante (`teclado`,
+ * `todos FORTE`) é preservado como qualificador depois do rótulo canônico.
+ * Sem sinônimo conhecido, o texto original é preservado entre colchetes,
+ * sem inventar rótulo.
+ *
+ * O delimitador pode ser `[...]`, `{...}` ou `rótulo:` — os três aceitam
+ * conteúdo depois (cifra na mesma linha, como `Introdução: | A | % | ... |`
+ * ou `[Intro] | C | ... |`), preservado depois do rótulo canônico com um
+ * espaço só, não o espaçamento original.
+ *
+ * Não resolve frase de referência ("Volta na INTRO" continua livre — isso é
+ * trabalho da materialização de seção referenciada, não de normalização de
+ * rótulo) nem decide se uma repetição da mesma seção deveria ganhar número
+ * (`[Refrão 2]`) — isso depende do conteúdo, é curadoria humana.
+ */
+export function normalizarSubtitulo(bruto: string): ResultadoNormalizacaoSubtitulo {
+  const trimado = bruto.trim();
+
+  const matchColchetes = /^\[([^\]]*)\](.*)$/.exec(trimado);
+  const matchChaves = /^\{([^{}]*)\}(.*)$/.exec(trimado);
+  const matchDoisPontos = RE_DOIS_PONTOS.exec(trimado);
+
+  let conteudo: string;
+  let sufixoBruto = '';
+  if (matchColchetes) {
+    conteudo = matchColchetes[1]!;
+    sufixoBruto = matchColchetes[2] ?? '';
+  } else if (matchChaves) {
+    conteudo = matchChaves[1]!;
+    sufixoBruto = matchChaves[2] ?? '';
+  } else if (matchDoisPontos) {
+    conteudo = matchDoisPontos[1]!;
+    sufixoBruto = matchDoisPontos[2] ?? '';
+  } else {
+    conteudo = trimado;
+  }
+
+  const sufixoTrimado = sufixoBruto.trim();
+  const sufixo = sufixoTrimado === '' ? '' : ` ${sufixoTrimado}`;
+
+  const { rotulo, reconhecido } = casarSinonimo(conteudo);
+  return { texto: `[${rotulo}]${sufixo}`, reconhecido };
+}
