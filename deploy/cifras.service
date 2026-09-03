@@ -1,0 +1,61 @@
+# Serviço do site de cifras.
+#
+# Instalar:
+#   sudo cp deploy/cifras.service /etc/systemd/system/cifras.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cifras
+#
+# Ajuste User/WorkingDirectory/ExecStart ao que já existe na VPS. Este arquivo
+# não pressupõe nada além de um usuário sem privilégio e o código em /opt/cifras.
+
+[Unit]
+Description=Cifras — site interno da banda (somente leitura)
+Documentation=file:///opt/cifras/docs/site.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cifras
+Group=cifras
+WorkingDirectory=/opt/cifras
+
+# CIFRAS_PORTA, CIFRAS_HOST, CIFRAS_REPERTORIO — ver .env.example.
+EnvironmentFile=/opt/cifras/.env
+
+# O servidor é TypeScript rodando direto no Node (type stripping nativo), sem
+# passo de build. Exige Node >= 23.6 — confira com `node --version` antes.
+ExecStart=/usr/bin/node site/servidor.ts
+
+Restart=on-failure
+RestartSec=5s
+
+# Encerra limpo: o servidor trata SIGTERM e fecha as conexões abertas.
+KillSignal=SIGTERM
+TimeoutStopSec=15s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cifras
+
+# --- Endurecimento -----------------------------------------------------
+# O serviço só lê arquivo e responde HTTP; não escreve nada em disco.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=no
+# ProtectSystem=strict deixa tudo somente leitura. Não há ReadWritePaths de
+# propósito: se um dia o serviço precisar escrever, o certo é declarar aqui o
+# diretório específico, não afrouxar o ProtectSystem.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

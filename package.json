@@ -6,11 +6,15 @@
     "node": ">=23.6.0"
   },
   "scripts": {
+    "start": "node site/servidor.ts",
     "test": "node --test",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "fastify": "^5.12.1"
   }
 }

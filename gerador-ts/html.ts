@@ -38,13 +38,36 @@ export function duro(t: string): string {
   return s.replace(/ {2,}/g, (m) => '&nbsp;'.repeat(m.length));
 }
 
-export function escrever(m: MusicaDados, tomDestino: string, quebraAntes = false): string {
+/**
+ * `momento` (Ofertório, Apelo / Ceia) é propriedade do PAPEL da música num
+ * culto, não da música. Fora de um documento de culto ele não tem contexto:
+ * uma página de `QUEBRANTADO` sozinha não deve anunciar "Ofertório".
+ *
+ * Por isso o padrão é emitir (é o comportamento do `gerador/html.py`, e as
+ * fixtures dependem dele), e quem emite música solta desliga.
+ *
+ * TODO (modelagem): `momento` deveria sair da música e ir para a entrada do
+ * culto — `CULTOS` hoje guarda `[musica, tom]` e deveria guardar
+ * `[musica, tom, momento]`. Enquanto ele mora na música, este parâmetro é o
+ * remendo. Ver `docs/site.md`.
+ */
+export interface OpcoesEmissao {
+  /** Emitir a linha de `momento`? Padrão `true` (comportamento do Python). */
+  momento?: boolean;
+}
+
+export function escrever(
+  m: MusicaDados,
+  tomDestino: string,
+  quebraAntes = false,
+  opcoes: OpcoesEmissao = {},
+): string {
   validar(m);
   const { deltaLetra, deltaSemitom } = passosESemitons(m.tom, tomDestino);
   const p: string[] = [];
   let cls = quebraAntes ? ' class=pb' : '';
 
-  if (m.momento) {
+  if (m.momento && opcoes.momento !== false) {
     p.push(`<p${cls}><b>${esc(m.momento)}</b></p>`);
     cls = '';
   }
@@ -75,8 +98,12 @@ export function escrever(m: MusicaDados, tomDestino: string, quebraAntes = false
 }
 
 /** Página completa. `ordem`: lista de (musica, tom_destino). */
-export function documento(ordem: [MusicaDados, string][], titulo = 'Cifras'): string {
-  const blocos = ordem.map(([m, t], i) => escrever(m, t, i > 0)).join('');
+export function documento(
+  ordem: [MusicaDados, string][],
+  titulo = 'Cifras',
+  opcoes: OpcoesEmissao = {},
+): string {
+  const blocos = ordem.map(([m, t], i) => escrever(m, t, i > 0, opcoes)).join('');
   return (
     '<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8">' +
     `<title>${esc(titulo)}</title><style>${CSS}</style></head>` +

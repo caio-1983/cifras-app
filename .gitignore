@@ -3,3 +3,6 @@ node_modules/
 # bytecode do Python (gerador/)
 __pycache__/
 *.pyc
+
+# ambiente do deploy (o exemplo é .env.example)
+.env
