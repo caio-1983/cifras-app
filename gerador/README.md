@@ -15,7 +15,29 @@ reproduz byte a byte o documento que está no Drive.
 | `rtf.py` | emissor RTF — **a saída para Google Docs** |
 | `html.py` | emissor HTML — a saída para tela e impressão pelo navegador |
 | `repertorio/` | treze músicas reais modeladas à mão |
+| `scripts/` | geradores de dado derivado (fixtures, `dados-repertorio.ts`, `dados/repertorio.json`) |
 | `tests/` | 83 testes, vários vindos de bug real |
+
+## A ponte para o site: `dados/repertorio.json`
+
+O repertório é Python; o site é TypeScript e não consegue importá-lo.
+`scripts/exportar_repertorio_json.py` exporta o modelo completo (titulo,
+artista, tom, momento, corpo tipado) para `dados/repertorio.json`, que o
+servidor lê em tempo de execução.
+
+```
+python gerador/scripts/exportar_repertorio_json.py
+```
+
+**É ponte temporária, e o JSON é derivado — não é fonte.** Quando o formato
+`.cifra` estabilizar (`docs/achados-importacao.md`), `repertorio/` vira
+`musicas/*.cifra`, o site passa a ler `.cifra` pelo parser do núcleo, e o
+JSON e o script somem juntos.
+
+O JSON é commitado (o site precisa dele) *e* gerado — a combinação que sai de
+sincronia em silêncio. `tests/test_exportacao_json.py` fecha essa porta: se
+alguém editar uma música e esquecer de regenerar, a suíte quebra em vez de o
+site servir a versão antiga.
 
 ## Uso
 
