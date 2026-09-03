@@ -44,3 +44,10 @@ musicas/ao-unico.cifra         (C)  → tests/esperado/ao-unico_Ab.cifra
 Escreva o teste antes do transpositor. Se um caso falhar, investigue se o esperado
 está errado antes de "consertar" o código — mas assuma que o esperado está certo até
 provar o contrário.
+
+**Toda mudança no núcleo roda contra `gerador/repertorio/` inteiro, não só contra os
+casos sintéticos** (`tests/relayoutRepertorio.test.ts` é o modelo: 13 músicas × 12
+tons). Três bugs deste projeto passaram por teste sintético e só apareceram em música
+real: a linha `~` no teste cruzado, o `\uN` fora do BMP, e a colisão do
+`colunaAbsoluta`. Teste sintético prova que o código faz o que você pensou; só música
+real prova que você pensou na coisa certa.
