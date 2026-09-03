@@ -10,14 +10,19 @@ e transpõe para qualquer tom na hora de exibir.
 - **Emissores em produção** — os cultos de 23/08, 28/08, 30/08 e 06/09 de 2026
   saíram de `gerador/` e foram tocados. Portados para TS em `gerador-ts/`, byte a
   byte contra o Python.
-- **Site no ar** — `site/`, só leitura, as 13 músicas de `gerador/repertorio/`, com
-  busca e troca de tom. É um pedaço da Fase 2 (leitura no palco), sem PWA offline.
+- **Site no ar, como Painel de Operação Musical** — `site/`. A tela principal é o
+  **culto**: setlist (reordenar, remover, adicionar, transpor, música atual) e um
+  **modo execução** escuro para o celular no palco. O conceito é preparar no
+  computador e executar pelo celular; o que atravessa é o link, porque o servidor
+  é só leitura e sem estado (`docs/site.md`).
 - **Próximo passo grande: Fase 1, a importação das 437 do Drive.** Tem decisão de
   formato pendente (`docs/achados-importacao.md`) — o inventário do Drive já
   levantado está em `bruto/`.
 
-Não construa montagem de culto na tela, edição, upload, banco ou login sem pedido
-explícito: cada um é fase própria, e a importação vem antes.
+A montagem de culto na tela existe, mas **monta sobre culto que já existe** e o
+resultado é rascunho no aparelho e no link. Criar culto novo, salvar setlist,
+culto ao vivo compartilhado entre celulares, edição, upload, banco e login
+continuam fora — cada um é fase própria, e a importação vem antes.
 
 ## Mapa
 
@@ -28,8 +33,8 @@ explícito: cada um é fase própria, e a importação vem antes.
 | `gerador/` | Python **validado em produção**: modelo, transposição, emissores RTF/HTML |
 | `gerador/repertorio/` | 13 músicas modeladas à mão; massa de teste real |
 | `gerador-ts/` | port TS dos emissores, travado byte a byte contra o Python |
-| `site/` | o servidor Fastify e as páginas |
-| `dados/` | `repertorio.json` — **gerado**, ponte temporária até o `.cifra` |
+| `site/` | o painel: servidor Fastify, design system (`ui.ts`), preparação (`paginas.ts`), execução (`execucao.ts`) |
+| `dados/` | `repertorio.json` — **gerado**, ponte temporária até o `.cifra` (músicas **e** cultos) |
 | `bruto/` | inventário do Drive e manifesto do dump (base da Fase 1) |
 | `deploy/` | systemd, nginx, certbot |
 

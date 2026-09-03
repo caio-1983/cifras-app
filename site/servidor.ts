@@ -1,12 +1,24 @@
 /**
- * Servidor do site de cifras: leitura, renderizado no servidor, sem SPA.
+ * Servidor do painel de operação musical: leitura, renderizado no servidor,
+ * sem SPA e **sem estado**.
  *
  * Rotas:
- *   GET /                     lista, com busca por título e artista
+ *   GET /                     o culto mais recente (redireciona pra /culto/:nome)
+ *   GET /culto/:nome          painel do culto: setlist, tons, música atual
+ *   GET /executar/:nome       MODO EXECUÇÃO — a tela do celular no culto
+ *   GET /musicas              o repertório, com busca
+ *   GET /buscar               a mesma busca, com o campo em foco
+ *   GET /cultos               cultos anteriores
  *   GET /musica/:slug         cifra no tom de origem
  *   GET /musica/:slug?tom=G   cifra transposta
+ *   GET /configuracoes        preferências deste aparelho
+ *   GET /perfil               por que não existe conta de usuário
  *   GET /saude                healthcheck do systemd
  *   GET /robots.txt           bloqueia tudo
+ *
+ * A setlist em execução viaja no `?ordem=` e a música atual no `?i=`/`?atual=`
+ * (ver `site/setlist.ts`) — é o que faz "preparar no computador e executar no
+ * celular" funcionar sem banco e sem sessão.
  *
  * **Não há autenticação aqui, de propósito.** O acervo tem letra de música
  * protegida e isto é ferramenta interna da banda: o gate é HTTP basic auth no
@@ -17,7 +29,19 @@
 import Fastify from 'fastify';
 import { fileURLToPath } from 'node:url';
 import { carregarRepertorio } from './repertorio.ts';
-import { paginaLista, paginaMusica, paginaNaoEncontrada, fragmentoCifra } from './paginas.ts';
+import {
+  paginaBiblioteca,
+  paginaConfiguracoes,
+  paginaCulto,
+  paginaHistorico,
+  paginaMusica,
+  paginaNaoEncontrada,
+  paginaPerfil,
+  paginaSemCulto,
+  fragmentoCifra,
+} from './paginas.ts';
+import { paginaExecucao } from './execucao.ts';
+import { decodificarOrdem, indiceValido } from './setlist.ts';
 import { tomValido } from './tons.ts';
 
 const RAIZ = new URL('..', import.meta.url);
@@ -52,6 +76,7 @@ export function criarServidor(config: Config) {
   app.get('/saude', async () => ({
     ok: true,
     musicas: rep.todas.length,
+    cultos: rep.cultos.length,
     versao: process.env.CIFRAS_VERSAO ?? null,
   }));
 
@@ -60,9 +85,70 @@ export function criarServidor(config: Config) {
     return ROBOTS;
   });
 
+  // A tela principal é o culto. Sem culto no repertório, o painel diz isso em
+  // vez de redirecionar para lugar nenhum.
   app.get('/', async (_req, resposta) => {
+    const maisRecente = rep.cultos[0];
+    if (!maisRecente) {
+      resposta.type('text/html; charset=utf-8');
+      return paginaSemCulto(rep);
+    }
+    return resposta.redirect(`/culto/${encodeURIComponent(maisRecente.nome)}`, 302);
+  });
+
+  app.get<{ Params: { nome: string }; Querystring: { ordem?: string; atual?: string } }>(
+    '/culto/:nome',
+    async (req, resposta) => {
+      const culto = rep.cultoPorNome(req.params.nome);
+      resposta.type('text/html; charset=utf-8');
+      if (!culto) {
+        resposta.code(404);
+        return paginaNaoEncontrada();
+      }
+      // `?ordem=` inválido cai na ordem tocada, como `?tom=` cai no tom de
+      // origem: quem abriu quer o culto, não um 400.
+      const entradas = decodificarOrdem(req.query.ordem, rep.porSlug) ?? culto.entradas;
+      return paginaCulto(rep, culto, entradas, indiceValido(req.query.atual, entradas.length));
+    },
+  );
+
+  app.get<{ Params: { nome: string }; Querystring: { ordem?: string; i?: string } }>(
+    '/executar/:nome',
+    async (req, resposta) => {
+      const culto = rep.cultoPorNome(req.params.nome);
+      resposta.type('text/html; charset=utf-8');
+      if (!culto) {
+        resposta.code(404);
+        return paginaNaoEncontrada();
+      }
+      const entradas = decodificarOrdem(req.query.ordem, rep.porSlug) ?? culto.entradas;
+      return paginaExecucao(culto, entradas, indiceValido(req.query.i, entradas.length));
+    },
+  );
+
+  app.get('/musicas', async (_req, resposta) => {
     resposta.type('text/html; charset=utf-8');
-    return paginaLista(rep);
+    return paginaBiblioteca(rep, { foco: false });
+  });
+
+  app.get('/buscar', async (_req, resposta) => {
+    resposta.type('text/html; charset=utf-8');
+    return paginaBiblioteca(rep, { foco: true });
+  });
+
+  app.get('/cultos', async (_req, resposta) => {
+    resposta.type('text/html; charset=utf-8');
+    return paginaHistorico(rep);
+  });
+
+  app.get('/configuracoes', async (_req, resposta) => {
+    resposta.type('text/html; charset=utf-8');
+    return paginaConfiguracoes();
+  });
+
+  app.get('/perfil', async (_req, resposta) => {
+    resposta.type('text/html; charset=utf-8');
+    return paginaPerfil();
   });
 
   app.get<{ Params: { slug: string }; Querystring: { tom?: string; fragmento?: string } }>(

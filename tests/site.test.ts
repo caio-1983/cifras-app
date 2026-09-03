@@ -30,9 +30,17 @@ async function comApp<T>(fn: (app: ReturnType<typeof criarServidor>) => Promise<
 }
 
 // ------------------------------------------------------------------ rotas
-test('GET / lista as 13 músicas, com título e artista buscáveis', async () => {
+test('GET / abre o culto mais recente — a tela principal é o culto, não a lista', async () => {
   await comApp(async (app) => {
     const r = await app.inject({ method: 'GET', url: '/' });
+    assert.equal(r.statusCode, 302);
+    assert.equal(r.headers.location, `/culto/${encodeURIComponent(rep.cultos[0]!.nome)}`);
+  });
+});
+
+test('GET /musicas lista as 13 músicas, com título e artista buscáveis', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: '/musicas' });
     assert.equal(r.statusCode, 200);
     assert.match(r.headers['content-type'] as string, /text\/html/);
     for (const m of rep.todas) {
@@ -99,9 +107,23 @@ test('GET /saude responde para o systemd', async () => {
 // --------------------------------------------------------- não indexar
 test('toda página traz noindex/nofollow, na meta e no cabeçalho', async () => {
   await comApp(async (app) => {
-    for (const url of ['/', '/musica/vitorioso-es', '/musica/nao-existe']) {
+    const paginas = [
+      '/musicas',
+      '/buscar',
+      '/cultos',
+      '/configuracoes',
+      '/perfil',
+      '/culto/06SET',
+      '/executar/06SET',
+      '/musica/vitorioso-es',
+      '/musica/nao-existe',
+    ];
+    for (const url of [...paginas, '/']) {
       const r = await app.inject({ method: 'GET', url });
       assert.equal(r.headers['x-robots-tag'], 'noindex, nofollow', url);
+    }
+    for (const url of paginas) {
+      const r = await app.inject({ method: 'GET', url });
       assert.ok(r.body.includes('name="robots" content="noindex, nofollow"'), url);
     }
   });
@@ -140,8 +162,14 @@ test('impressão continua A4 com quebra de página entre músicas', async () => 
     const r = await app.inject({ method: 'GET', url: '/musica/vitorioso-es' });
     assert.ok(r.body.includes('@page{size:A4;margin:72pt}'), 'sumiu o A4');
     assert.ok(r.body.includes('.pb{page-break-before:always}'), 'sumiu a quebra de página');
-    // O cromo de tela não pode vazar para o papel.
-    assert.ok(/@media print\{[^}]*\.barra,\.tons,\.fonte,\.rodape\{display:none!important\}/.test(r.body));
+    // O cromo de tela não pode vazar para o papel: a casca de navegação, os
+    // controles e o cromo da execução são escondidos na impressão.
+    for (const classe of ['.lateral', '.abas', '.barra-topo', '.exec-topo', '.exec-rodape', '.chip']) {
+      assert.ok(
+        new RegExp(`@media print\\{[^}]*\\${classe}[,{]`).test(r.body),
+        `${classe} não é escondido na impressão`,
+      );
+    }
   });
 
   // A quebra entre músicas é do emissor e continua valendo para vários blocos

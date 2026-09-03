@@ -4,7 +4,8 @@
     "fonte": "gerador/repertorio/*.py",
     "nao_editar": "arquivo derivado — edite a fonte e regenere",
     "provisorio": "ponte até o formato .cifra estabilizar (docs/achados-importacao.md); depois o site lê .cifra pelo parser e este arquivo some",
-    "musicas": 13
+    "musicas": 13,
+    "cultos": 3
   },
   "musicas": {
     "a-maior-honra": {
@@ -4615,5 +4616,61 @@
         ]
       ]
     }
+  },
+  "cultos": {
+    "06SET": [
+      [
+        "vitorioso-es",
+        "G"
+      ],
+      [
+        "eu-vou-construir",
+        "C"
+      ],
+      [
+        "teu-toque",
+        "Bb"
+      ],
+      [
+        "quebrantado",
+        "C"
+      ],
+      [
+        "a-maior-honra",
+        "Ab"
+      ]
+    ],
+    "28AGO_Sexta": [
+      [
+        "alem-do-impossivel",
+        "C"
+      ],
+      [
+        "eu-me-rendo",
+        "G"
+      ],
+      [
+        "pai-de-multidoes",
+        "B"
+      ]
+    ],
+    "30AGO_Noite": [
+      [
+        "exaltamos-yahweh",
+        "F"
+      ],
+      [
+        "emaus",
+        "B"
+      ],
+      [
+        "nao-ha-um-nome-igual",
+        "F"
+      ],
+      [
+        "tua-forte-mao",
+        "Ab"
+      ]
+    ]
   }
 }

@@ -37,7 +37,7 @@ RAIZ = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ))
 
 from gerador import modelo as md  # noqa: E402
-from gerador.repertorio import REPERTORIO  # noqa: E402
+from gerador.repertorio import REPERTORIO, CULTOS  # noqa: E402
 
 DESTINO = RAIZ / 'dados' / 'repertorio.json'
 
@@ -61,6 +61,19 @@ def musica_para_json(m):
     return saida
 
 
+def slug_por_identidade(musica_obj):
+    """O slug de uma música de `CULTOS`, por identidade de objeto.
+
+    `CULTOS` guarda as próprias músicas, não os slugs — e o site precisa do
+    slug pra montar o link. Comparação por `is` de propósito: título repetido
+    (medley que entra inteiro e em pedaços) acharia a música errada.
+    """
+    for slug, m in REPERTORIO.items():
+        if m is musica_obj:
+            return slug
+    raise ValueError(f'música de CULTOS não encontrada em REPERTORIO: {musica_obj.get("titulo")!r}')
+
+
 def montar():
     """Devolve o documento inteiro, pronto pra serializar.
 
@@ -70,6 +83,13 @@ def montar():
     for slug, m in sorted(REPERTORIO.items()):
         md.validar(m)  # barato, e pega erro de modelagem antes de virar dado do site
         musicas[slug] = musica_para_json(m)
+    # `cultos` é `[slug, tom]` — a mesma forma de `gerar_dados_ts.py`. É o que
+    # o painel de operação lê pra montar a setlist: culto que já foi tocado é
+    # dado real, não exemplo inventado na tela.
+    cultos = {
+        nome: [[slug_por_identidade(m), tom] for m, tom in ordem]
+        for nome, ordem in sorted(CULTOS.items())
+    }
     return {
         'meta': {
             'gerado_por': 'gerador/scripts/exportar_repertorio_json.py',
@@ -80,8 +100,10 @@ def montar():
                 'depois o site lê .cifra pelo parser e este arquivo some'
             ),
             'musicas': len(musicas),
+            'cultos': len(cultos),
         },
         'musicas': musicas,
+        'cultos': cultos,
     }
 
 

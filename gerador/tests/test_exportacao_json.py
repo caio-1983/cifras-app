@@ -11,7 +11,7 @@ import pathlib
 
 import pytest
 
-from gerador.repertorio import REPERTORIO
+from gerador.repertorio import REPERTORIO, CULTOS
 from gerador.scripts.exportar_repertorio_json import DESTINO, montar, serializar
 
 
@@ -37,6 +37,26 @@ def test_json_tem_as_treze_musicas():
     d = carregar()
     assert sorted(d['musicas']) == sorted(REPERTORIO)
     assert d['meta']['musicas'] == len(REPERTORIO)
+
+
+def test_json_tem_os_cultos_com_a_ordem_e_o_tom_tocados():
+    """A setlist do painel é culto que já foi tocado, não exemplo de tela.
+
+    O que o site precisa é `[slug, tom]` na ORDEM em que foi tocado — ordem e
+    tom são o dado; trocar qualquer um dos dois muda o que a banda toca.
+    """
+    d = carregar()
+    assert sorted(d['cultos']) == sorted(CULTOS)
+    assert d['meta']['cultos'] == len(CULTOS)
+
+    porta_slug = {id(m): slug for slug, m in REPERTORIO.items()}
+    for nome, ordem in CULTOS.items():
+        esperado = [[porta_slug[id(m)], tom] for m, tom in ordem]
+        assert d['cultos'][nome] == esperado, nome
+        # Todo slug de culto tem que abrir: link quebrado no painel é culto
+        # que não pode ser executado.
+        for slug, _ in esperado:
+            assert slug in d['musicas'], f'{nome}: {slug} fora do repertório'
 
 
 @pytest.mark.parametrize('slug', sorted(REPERTORIO))
