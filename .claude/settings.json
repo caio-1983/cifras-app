@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(node --test)",
+      "Bash(node --test:*)",
+      "Bash(python -m pytest gerador/tests -q)",
+      "Bash(python -m pytest gerador/tests:*)",
+      "Bash(python gerador/scripts/gerar_fixtures_emissor.py)",
+      "Bash(python gerador/scripts/gerar_dados_ts.py)",
+      "Bash(python gerador/scripts/exportar_repertorio_json.py)"
+    ]
+  }
+}
