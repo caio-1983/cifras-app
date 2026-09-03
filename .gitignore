@@ -1,1 +1,5 @@
 node_modules/
+
+# bytecode do Python (gerador/)
+__pycache__/
+*.pyc

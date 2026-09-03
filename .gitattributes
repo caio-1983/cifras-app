@@ -1,0 +1,8 @@
+# Este projeto compara arquivos BYTE A BYTE, não "a menos de fim de linha":
+# as 139 fixtures de tests/fixtures-emissor/, os golden files de
+# tests/esperado/ e o md5 do culto 06SET. Esta máquina tem core.autocrlf=true,
+# que converteria LF em CRLF no checkout — num clone novo, toda comparação de
+# fixture falharia, e o md5 39df11d417747ee3443f234f3a872c47 deixaria de bater.
+#
+# Fim de linha é LF no repositório e LF no disco, em qualquer sistema.
+* text=auto eol=lf
