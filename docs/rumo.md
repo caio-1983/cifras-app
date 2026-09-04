@@ -144,8 +144,12 @@ Decisões tomadas:
   emitir só o arranjo. Preserva o round-trip, as 139 fixtures e a curadoria num
   arquivo só. *A marcação exata ainda é passo de desenho* — o que ela não pode
   fazer é colidir com `[`, `{`, `~`, `|`, `%` ou `/`.
-- **Lote 1: as 35 músicas ativas** já mapeadas em `bruto/inventario.tsv` (73
-  arquivos deduplicados), não as 400.
+- ~~Lote 1: as 35 músicas ativas~~ — **revisto no mesmo dia: o acervo inteiro
+  veio de uma vez** (421 documentos). Com o importador já em 86% sobre os 73 do
+  repertório ativo, o custo por arquivo estava conhecido e dois ciclos de
+  exportação sairiam mais caros que um. `bruto/inventario.tsv` (73, repertório
+  ativo) continua valendo como recorte; `bruto/txt/_inventario-completo.tsv`
+  (421) é a procedência do acervo todo.
 - **O importador recebe o diretório de destino por parâmetro**, em vez de assumir
   `musicas/` — a mudança física para `acervo/<igreja>/` fica no Sprint 4, e o
   parâmetro evita que ela seja reescrita (decisão 2 acima).
