@@ -72,3 +72,29 @@ test('normalizarCabecalhoBruto: linha após o título que já parece corpo (marc
   assert.deepEqual(cabecalho, ['titulo: X']);
   assert.deepEqual(resto, ['[Intro]', 'Tom: C']);
 });
+
+test('normalizarCabecalhoBruto: linha em branco DENTRO do cabeçalho não encerra o cabeçalho (caso real, CANÇÃO DO CÉU) — antes o "tom" se perdia inteiro', () => {
+  const { cabecalho, resto } = normalizarCabecalhoBruto(['CANÇÃO DO CÉU', '', '', 'Tom: E', '[Intro] | A | % |']);
+  assert.deepEqual(cabecalho, ['titulo: CANÇÃO DO CÉU', 'tom: E']);
+  assert.deepEqual(resto, ['[Intro] | A | % |']);
+});
+
+test('normalizarCabecalhoBruto: depois de uma linha em branco, só campo CONHECIDO continua o cabeçalho', () => {
+  // A branca é o que hoje protege contra engolir letra que tem dois-pontos.
+  // Tolerar a branca sem restringir a chave faria "Senhor: eu te amo" virar
+  // campo de cabeçalho — por isso, depois da branca, a chave tem que ser uma
+  // das conhecidas do formato.
+  const { cabecalho, resto } = normalizarCabecalhoBruto(['X', '', 'Senhor: eu te amo', 'resto da letra']);
+  assert.deepEqual(cabecalho, ['titulo: X']);
+  assert.deepEqual(resto, ['Senhor: eu te amo', 'resto da letra']);
+});
+
+test('normalizarCabecalhoBruto: campo desconhecido ANTES de qualquer branca continua aceito (não restringe o que já funcionava)', () => {
+  const { cabecalho } = normalizarCabecalhoBruto(['X', 'Tom: C', 'bpm: 72', '']);
+  assert.deepEqual(cabecalho, ['titulo: X', 'tom: C', 'bpm: 72']);
+});
+
+test('normalizarCabecalhoBruto: tessitura entre parênteses sobrevive à branca no meio', () => {
+  const { cabecalho } = normalizarCabecalhoBruto(['RENOVA-ME', '', 'Tom: Eb (masculino)', '', 'corpo']);
+  assert.deepEqual(cabecalho, ['titulo: RENOVA-ME', 'tom: Eb', 'tessitura: masculino']);
+});

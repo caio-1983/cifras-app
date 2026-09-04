@@ -7,6 +7,10 @@ const RE_QUALIFICADOR_FINAL = /\s*\(([^()]*)\)\s*$/;
 // medley virou arquivo separado por decisão do usuário, então num cabeçalho
 // de arquivo único o traço só pode significar título–artista).
 const RE_TITULO_ARTISTA = /^(.+?)\s+[–-]\s+(.+)$/;
+// Campos do formato (`formato-cifra.md`). Usados só para decidir se uma linha
+// em branco no meio do cabeçalho pode ser atravessada — antes da primeira
+// branca, campo desconhecido continua aceito como sempre foi.
+const CAMPOS_CONHECIDOS = new Set(['titulo', 'artista', 'tom', 'momento', 'tessitura']);
 
 export interface CabecalhoBrutoNormalizado {
   /** Linhas já em "chave: valor", sem título envolvido em nada — prontas para receber o "---" na frente do corpo. */
@@ -80,8 +84,21 @@ export function normalizarCabecalhoBruto(linhasCruas: string[]): CabecalhoBrutoN
   while (i < linhasCruas.length) {
     const linha = linhasCruas[i]!.trim();
     if (linha === '') {
-      while (i < linhasCruas.length && linhasCruas[i]!.trim() === '') i++;
-      break;
+      let j = i;
+      while (j < linhasCruas.length && linhasCruas[j]!.trim() === '') j++;
+      // Linha em branco DENTRO do cabeçalho (achado real, CANÇÃO DO CÉU:
+      // título, duas brancas, "Tom: E") — sem tolerar isso, o tom se perde
+      // inteiro. Mas a branca é justamente o que hoje protege contra engolir
+      // letra que tem dois-pontos ("Senhor: eu te amo"), então depois dela só
+      // um campo CONHECIDO continua o cabeçalho; qualquer outra coisa é corpo.
+      const proxima = j < linhasCruas.length ? linhasCruas[j]!.trim() : '';
+      const campo = RE_CHAVE_VALOR.exec(proxima);
+      if (!campo || !CAMPOS_CONHECIDOS.has(campo[1]!.trim().toLowerCase())) {
+        i = j;
+        break;
+      }
+      i = j;
+      continue;
     }
     const m = RE_CHAVE_VALOR.exec(linha);
     if (!m) break;
