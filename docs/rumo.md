@@ -98,6 +98,48 @@ compartilhamento entre igrejas, ele pode ser só de arranjo, sem redistribuir
 obra de terceiro. Se a questão jurídica for resolvida de outro jeito, nada se
 perde. Sem essa separação, a decisão futura vira refatoração do acervo inteiro.
 
+## Plano do Sprint 1 — estado e decisões (2026-09-04)
+
+**As três mudanças estruturais de formato dos achados já estão implementadas e
+verdes** (posicional como tipo comum, vocabulário aberto com sinônimos, anotação
+`{...}`) — ver `plano-camada-formato.md`, item por item, e 346 testes passando.
+O Sprint 1 não começa em formato; começa onde o trabalho parou de verdade.
+
+Ordem:
+
+0. **Exportação byte-fiel do Drive** — o gargalo real. `bruto/MANIFESTO.md`
+   registra a interrupção: a via usada escapava sustenido (`\#`). 399 dos 400
+   arquivos são Google Docs nativos, não `.docx`. Aceitação: hexdump com `#`
+   literal, BOM e CRLF preservados. **Depende do usuário** (credencial e via:
+   `rclone`, Baixar pasta, Takeout, ou export por `fileId` em `text/plain`).
+1. **Separar arranjo de letra** — a única mudança de formato que falta, e é a
+   decisão 3 acima. Vem antes do volume: importar 437 no formato de hoje faria
+   a mudança virar reprocessamento do acervo inteiro.
+2. **Cobertura antes do volume** — cada música importada entra no round-trip do
+   `golden.test.ts` e no loop de `relayoutRepertorio.test.ts` (× 12 tons).
+3. **Importação em lote, com relatório de taxa** — falhas agrupadas por causa:
+   causa recorrente vira regra, caso único vira curadoria manual.
+4. **Split de medley** — 3 arquivos do inventário servem duas músicas cada.
+5. **Curadoria humana das que não entram** — o acervo tem cifras genuinamente
+   incompletas (`TU ÉS BOM` é o precedente).
+
+**437 é contagem de arquivos, não de músicas.** O acervo tem duplicata de tom por
+música; o entregável do sprint é *músicas únicas importadas*. A tessitura que
+vinha no nome do arquivo (`_C_masculino`) é preservada no campo `tessitura`.
+
+Decisões tomadas:
+
+- **Arranjo × letra: um arquivo, dois blocos.** O `.cifra` continua sendo um
+  arquivo por música; a separação é dentro do corpo, e o serializador sabe
+  emitir só o arranjo. Preserva o round-trip, as 139 fixtures e a curadoria num
+  arquivo só. *A marcação exata ainda é passo de desenho* — o que ela não pode
+  fazer é colidir com `[`, `{`, `~`, `|`, `%` ou `/`.
+- **Lote 1: as 35 músicas ativas** já mapeadas em `bruto/inventario.tsv` (73
+  arquivos deduplicados), não as 400.
+- **O importador recebe o diretório de destino por parâmetro**, em vez de assumir
+  `musicas/` — a mudança física para `acervo/<igreja>/` fica no Sprint 4, e o
+  parâmetro evita que ela seja reescrita (decisão 2 acima).
+
 ## Sobre a questão jurídica, para não reintroduzir sem querer
 
 Levantamento já feito: não existe licença coletiva no Brasil para reproduzir
