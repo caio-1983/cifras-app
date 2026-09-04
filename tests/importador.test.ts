@@ -241,3 +241,19 @@ test('importarCifraCrua: caso real do Drive (OUSADO AMOR) — artista em linha p
   assert.ok(texto.includes('[Final] | Dm | C4 C | Bb9 | F |'));
   assert.ok(!texto.includes('[Fim]'));
 });
+
+test('importarCifraCrua: barra colada no acorde é espaçada (achado item 9, caso real EU VOU CONSTRUIR: "| Bm7 |D/F# |")', () => {
+  const cru = ['EU VOU CONSTRUIR – JULIANO SON', 'TOM: D', '', '{ponte}         | G7M | A | Bm7 |D/F# |', 'Eu vou construir'].join('\n');
+  const cifra = importarCifraCrua(cru, 'eu-vou-construir.cifra');
+  assert.ok(cifra.includes('[Ponte] | G7M | A | Bm7 | D/F# |'), cifra);
+});
+
+test('importarCifraCrua: linha POSICIONAL nunca é reespaçada — inserir espaço ali move o acorde de sílaba', () => {
+  // O híbrido do achado item 2: barras alinhadas à sílaba, não divisão de
+  // compasso. Normalizar espaçamento aqui destruiria o alinhamento, que é o
+  // conteúdo da linha.
+  const posicional = '~                       | Cm |         | Bb |';
+  const cru = ['UM SÓ', 'Tom: Cm', '', posicional, 'Ele é a ressurreição e a vida'].join('\n');
+  const cifra = importarCifraCrua(cru, 'um-so.cifra');
+  assert.ok(cifra.includes(posicional), cifra);
+});

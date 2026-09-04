@@ -1,5 +1,5 @@
 import { normalizarCabecalhoBruto } from './normalizacaoCabecalho.ts';
-import { expandirTabs } from './normalizacao.ts';
+import { expandirTabs, normalizarEspacamentoCompasso } from './normalizacao.ts';
 import { normalizarSubtitulo } from './sinonimosSubtitulo.ts';
 import { marcarLinhasPosicionaisCruas } from './deteccaoPosicionalCrua.ts';
 import { materializarSecoesReferenciadas } from './materializacaoSecoes.ts';
@@ -63,6 +63,33 @@ function colapsarLinhasEmBrancoConsecutivas(linhas: string[]): string[] {
 }
 
 /**
+ * Aplica a normalização de espaçamento do achado item 9 (`|Am|G|` →
+ * `| Am | G |`) só onde ela é segura.
+ *
+ * **Nunca em linha posicional.** Numa linha `~` a coluna de cada item É o
+ * conteúdo — o acorde fica sobre a sílaba de baixo. Inserir um espaço ali
+ * move o acorde de sílaba, que é justamente o erro que o formato existe
+ * para evitar. Por isso roda depois de `marcarLinhasPosicionaisCruas`: só
+ * assim dá para saber quais linhas já são posicionais.
+ *
+ * Em linha de compasso o relayout preserva largura, não coluna, então
+ * reespaçar não tem efeito colateral. Vale também para a cifra que vem na
+ * mesma linha de um subtítulo (`[Ponte] | G7M | A | Bm7 |D/F# |`, caso real
+ * de EU VOU CONSTRUIR), preservando o rótulo intacto.
+ */
+function normalizarEspacamentoSeForCifra(linha: string): string {
+  const trimada = linha.trim();
+  if (trimada.startsWith('~')) return linha;
+  if (trimada.startsWith('|')) return normalizarEspacamentoCompasso(linha);
+
+  const subtituloComCifra = /^(\s*\[[^\]]*\]\s*)(.*)$/.exec(linha);
+  if (subtituloComCifra && subtituloComCifra[2]!.includes('|')) {
+    return subtituloComCifra[1]! + normalizarEspacamentoCompasso(subtituloComCifra[2]!);
+  }
+  return linha;
+}
+
+/**
  * Importa uma cifra crua (texto colado do acervo, sem curadoria) e devolve
  * o texto final no formato `.cifra` canônico, pronto para salvar em
  * `musicas/*.cifra`. Encadeia, na ordem certa, as peças já testadas
@@ -85,7 +112,11 @@ function colapsarLinhasEmBrancoConsecutivas(linhas: string[]): string[] {
  *    não é vazia" precisa olhar a estrutura final, já com as seções
  *    materializadas (uma seção duplicada por materialização também
  *    precisa ganhar `~` nas suas próprias linhas de cifra crua)
- * 7. colapsa duas ou mais linhas em branco seguidas em uma só
+ * 7. normaliza espaçamento ao redor de `|` (`normalizarEspacamentoCompasso`,
+ *    achado item 9) só em linha de compasso e na cifra que acompanha um
+ *    subtítulo — nunca em linha posicional, onde a coluna é o conteúdo; por
+ *    isso depois do passo 6, o único momento em que se sabe quem é posicional
+ * 8. colapsa duas ou mais linhas em branco seguidas em uma só
  *    (`colapsarLinhasEmBrancoConsecutivas`) — por último, depois que
  *    materialização já inseriu os separadores que precisava
  *
@@ -119,7 +150,8 @@ export function importarCifraCrua(textoCru: string, nomeArquivo?: string): strin
   const comSubtitulos = semTabs.map(normalizarLinhaDeSubtituloSeForCandidata);
   const materializado = materializarSecoesReferenciadas(comSubtitulos);
   const marcado = marcarLinhasPosicionaisCruas(materializado);
-  const corpoFinal = colapsarLinhasEmBrancoConsecutivas(marcado);
+  const espacado = marcado.map(normalizarEspacamentoSeForCifra);
+  const corpoFinal = colapsarLinhasEmBrancoConsecutivas(espacado);
 
   const texto = [...cabecalho, '---', ...corpoFinal].join('\n') + '\n';
   parseMusica(texto, nomeArquivo);

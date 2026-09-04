@@ -128,3 +128,70 @@ test('materializarSecoesReferenciadas: caso real completo (ESTAMOS DE PÉ) — V
   assert.ok(materializado.includes('[Ponte] | A | % | Em7 | % | G | % | D | % |'));
   assert.equal(materializado.at(-1), '[Final] | A | Em7 | D9 | A |');
 });
+
+test('materializarSecoesReferenciadas: roteiro de execução (corrida de marcadores com cifra própria) nunca é materializado — caso real, EU VOU CONSTRUIR', () => {
+  // Achado real: 10 dos 73 arquivos do acervo terminam com a ORDEM em que
+  // as seções são tocadas, cada linha com a cifra de lembrete. Não são
+  // repetições de seção — materializar a letra ali viraria 3 linhas de
+  // roteiro em ~30 de letra duplicada. Decisão do usuário: preservar.
+  const linhas = [
+    '[Verso 1]',
+    '| D | G7M |',
+    'Digno desta canção',
+    '',
+    '[Refrão]',
+    '| G7M | Em7 |',
+    'Santo, és incomparável',
+    '',
+    '[Intro] | D  A | G |',
+    '[Verso 1] | D/F# | G7M |',
+    '[Refrão 2x] | G7M | Em7 |',
+  ];
+  assert.deepEqual(materializarSecoesReferenciadas(linhas), linhas);
+});
+
+test('materializarSecoesReferenciadas: seção instrumental com cifra na própria linha e sem ocorrência anterior não é erro — caso real, TE LOUVAREI', () => {
+  // "[Rampa] | F/A Bb | C |" é uma seção completa: a cifra está na linha do
+  // marcador. Antes, "Rampa" esperava corpo abaixo, o corpo vazio a fazia
+  // parecer referência, e não havendo ocorrência anterior o importador
+  // derrubava o arquivo inteiro. Vale para Solo/Instrumental/Turnaround
+  // também, que aparecem do mesmo jeito no acervo.
+  // Estrutura do arquivo real: o "[Rampa]" está ISOLADO entre uma seção com
+  // letra e um "[Refrão]" normal — não é corrida de roteiro, então é a regra
+  // "trouxe a própria cifra, logo é seção completa" que tem de segurá-lo.
+  const linhas = [
+    '[Verso 1]',
+    '| F/C | % |',
+    'Não sou apenas servo',
+    '',
+    '[Rampa] | F/A Bb | C |',
+    '',
+    '[Refrão]',
+    '| F F/A | Bb |',
+    'Te louvarei',
+  ];
+  assert.deepEqual(materializarSecoesReferenciadas(linhas), linhas);
+});
+
+test('materializarSecoesReferenciadas: marcador nu, sem cifra nenhuma e sem ocorrência anterior, CONTINUA sendo erro', () => {
+  // O comportamento que o caso TU ÉS BOM estabeleceu como certo: falhar
+  // alto em vez de adivinhar. Um marcador que não traz nada é referência
+  // de verdade, e sem origem para copiar o arquivo tem que ser recusado.
+  assert.throws(
+    () => materializarSecoesReferenciadas(['[Verso 1]', 'letra', '', '[Refrão]', '']),
+    /seção "\[Refrão\]".*não há ocorrência anterior/,
+  );
+});
+
+test('materializarSecoesReferenciadas: cifra própria NÃO impede materialização quando há ocorrência anterior com corpo (o caso Verso 2 continua valendo)', () => {
+  const linhas = ['[Verso 2] | A | % |', 'letra um', '', '[Verso 2] | A | % |', '', '[Final]'];
+  assert.deepEqual(materializarSecoesReferenciadas(linhas), [
+    '[Verso 2] | A | % |',
+    'letra um',
+    '',
+    '[Verso 2] | A | % |',
+    'letra um',
+    '',
+    '[Final]',
+  ]);
+});

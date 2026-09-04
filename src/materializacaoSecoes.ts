@@ -3,6 +3,8 @@ import { esperaCorpoAbaixo } from './sinonimosSubtitulo.ts';
 interface Marcador {
   indice: number;
   rotulo: string;
+  /** true quando a linha do marcador traz conteúdo próprio depois do `]` (cifra de lembrete). */
+  temCifraPropria: boolean;
 }
 
 function encontrarMarcadores(linhas: string[]): Marcador[] {
@@ -12,7 +14,11 @@ function encontrarMarcadores(linhas: string[]): Marcador[] {
     if (!trimada.startsWith('[')) continue;
     const fechamento = trimada.indexOf(']');
     if (fechamento === -1) continue;
-    marcadores.push({ indice, rotulo: trimada.slice(0, fechamento + 1) });
+    marcadores.push({
+      indice,
+      rotulo: trimada.slice(0, fechamento + 1),
+      temCifraPropria: trimada.slice(fechamento + 1).trim() !== '',
+    });
   }
   return marcadores;
 }
@@ -46,23 +52,42 @@ export function materializarSecoesReferenciadas(linhas: string[]): string[] {
 
   const fimDoBloco = (m: number): number => (m + 1 < marcadores.length ? marcadores[m + 1]!.indice : linhas.length);
   const corpoDoBloco = (m: number): string[] => linhas.slice(marcadores[m]!.indice + 1, fimDoBloco(m));
-  const ehVazio = (m: number): boolean =>
-    esperaCorpoAbaixo(marcadores[m]!.rotulo) && corpoDoBloco(m).every((l) => l.trim() === '');
+  const semCorpoAbaixo = (m: number): boolean => corpoDoBloco(m).every((l) => l.trim() === '');
+  const ehVazio = (m: number): boolean => esperaCorpoAbaixo(marcadores[m]!.rotulo) && semCorpoAbaixo(m);
+
+  /**
+   * Roteiro de execução: dois ou mais marcadores seguidos, cada um com a
+   * própria cifra de lembrete e nada abaixo. É a ordem em que as seções são
+   * tocadas, não repetição de seção — 10 dos 73 arquivos do primeiro lote
+   * terminam assim. Decisão do usuário: preservar como está.
+   */
+  const ehRoteiro = (m: number): boolean => {
+    const parteDeRoteiro = (k: number): boolean =>
+      k >= 0 && k < marcadores.length && marcadores[k]!.temCifraPropria && semCorpoAbaixo(k);
+    return parteDeRoteiro(m) && (parteDeRoteiro(m - 1) || parteDeRoteiro(m + 1));
+  };
 
   const insercoes: { apos: number; conteudo: string[] }[] = [];
 
   for (let m = 0; m < marcadores.length; m++) {
     if (!ehVazio(m)) continue;
+    if (ehRoteiro(m)) continue;
 
     let origem = -1;
     for (let anterior = m - 1; anterior >= 0; anterior--) {
-      if (marcadores[anterior]!.rotulo === marcadores[m]!.rotulo && !ehVazio(anterior)) {
+      if (marcadores[anterior]!.rotulo === marcadores[m]!.rotulo && !semCorpoAbaixo(anterior)) {
         origem = anterior;
         break;
       }
     }
 
     if (origem === -1) {
+      // Um marcador que traz a própria cifra já é uma seção completa
+      // (`[Rampa] | F/A Bb | C |`, `[Solo] |: Bb | C :|`) — sem ocorrência
+      // anterior para copiar, ele não é referência nenhuma: fica como veio.
+      // Só o marcador NU, que não traz nada, é referência de verdade — e aí
+      // falhar alto é o comportamento certo (precedente: TU ÉS BOM).
+      if (marcadores[m]!.temCifraPropria) continue;
       throw new Error(
         `seção "${marcadores[m]!.rotulo}" (linha ${marcadores[m]!.indice + 1}) está vazia e não há ocorrência anterior com conteúdo para repetir`,
       );
