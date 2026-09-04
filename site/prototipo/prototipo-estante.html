@@ -1,0 +1,432 @@
+<title>Estante</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@600&family=IBM+Plex+Sans:wght@400;600;700&display=swap">
+<style>
+:root{
+  --ground:#f5f6f7; --surface:#ffffff; --raised:#eceef0;
+  --ink:#16181b; --muted:#6a7075; --line:#dfe3e6;
+  --cifra:#ff6600; --rotulo:#0000ff; --anot:#9900ff;
+  --sombra:0 1px 2px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.06);
+  --sans:"IBM Plex Sans",-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --base:19px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0f1113; --surface:#16191c; --raised:#20252a;
+  --ink:#e9eaec; --muted:#8b9197; --line:#262b30;
+  --cifra:#ff8a3d; --rotulo:#8db2ff; --anot:#c79bff;
+  --sombra:0 1px 2px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.4);
+}}
+:root[data-theme="dark"]{
+  --ground:#0f1113; --surface:#16191c; --raised:#20252a;
+  --ink:#e9eaec; --muted:#8b9197; --line:#262b30;
+  --cifra:#ff8a3d; --rotulo:#8db2ff; --anot:#c79bff;
+  --sombra:0 1px 2px rgba(0,0,0,.5),0 8px 24px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+  -webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--cifra);outline-offset:2px;border-radius:4px}
+
+/* ---------- barra de contexto ---------- */
+.topo{position:sticky;top:0;z-index:20;background:var(--surface);
+  border-bottom:1px solid var(--line)}
+.topo-l1{display:flex;align-items:center;gap:10px;padding:9px 14px 7px}
+.voltar{flex:0 0 auto;width:30px;height:30px;display:grid;place-items:center;
+  color:var(--muted);font-size:20px;line-height:1;margin-left:-6px}
+.tit{flex:1 1 auto;min-width:0}
+.tit b{display:block;font-size:15px;font-weight:700;line-height:1.15;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tit span{display:block;font-size:12px;color:var(--muted);line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tom{flex:0 0 auto;font-family:var(--mono);font-weight:600;font-size:15px;
+  color:var(--cifra);background:var(--raised);border-radius:6px;padding:5px 10px}
+.agora{display:flex;align-items:center;gap:8px;padding:0 14px 8px;
+  font-size:12px;color:var(--muted);min-height:18px}
+.agora b{color:var(--rotulo);font-weight:600}
+
+/* ---------- índice de seções ---------- */
+.chips{display:flex;gap:6px;overflow-x:auto;padding:8px 14px;
+  border-bottom:1px solid var(--line);background:var(--surface);
+  scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;font-size:12px;font-weight:600;color:var(--muted);
+  background:var(--raised);border-radius:999px;padding:5px 11px;white-space:nowrap}
+.chip[aria-current="true"]{color:var(--surface);background:var(--rotulo)}
+
+/* ---------- o chart ---------- */
+main{padding:14px 14px 96px;max-width:760px;margin:0 auto}
+.secao{margin:0 0 22px}
+.rot{font-size:calc(var(--base) * .82);font-weight:700;color:var(--rotulo);
+  letter-spacing:.02em;margin:0 0 6px;display:flex;align-items:baseline;
+  gap:8px;flex-wrap:wrap}
+.rot .inline{font-family:var(--mono);color:var(--cifra);font-weight:600;
+  font-size:calc(var(--base) * .9)}
+.cif{font-family:var(--mono);font-weight:600;color:var(--cifra);
+  font-size:calc(var(--base) * .92);white-space:pre;overflow-x:auto;
+  padding-bottom:2px;line-height:1.5;scrollbar-width:thin}
+.let{font-size:var(--base);line-height:1.45;margin:0 0 2px}
+.anot{font-size:calc(var(--base) * .78);font-weight:600;color:var(--anot);
+  margin:4px 0}
+.vazio{height:calc(var(--base) * .7)}
+
+/* par acorde+sílaba: quebra junto, alinhamento nunca se perde */
+.par{margin:0 0 6px}
+.seg{display:inline-block;vertical-align:bottom}
+.seg .ch{display:block;font-family:var(--mono);font-weight:600;
+  color:var(--cifra);font-size:calc(var(--base) * .82);line-height:1.25;
+  min-height:calc(var(--base) * 1.02);white-space:pre}
+.seg .ly{display:block;font-size:var(--base);line-height:1.35;white-space:pre}
+
+.repetida{display:flex;align-items:center;gap:10px;color:var(--muted);
+  font-size:calc(var(--base) * .8);background:var(--raised);
+  border-radius:8px;padding:9px 12px}
+.repetida b{color:var(--rotulo)}
+.repetida em{font-style:normal;margin-left:auto;font-size:12px}
+
+/* ---------- controles, ao alcance do polegar ---------- */
+.barra{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--surface);
+  border-top:1px solid var(--line);box-shadow:var(--sombra);
+  padding:8px 12px calc(8px + env(safe-area-inset-bottom));
+  display:flex;gap:8px;align-items:center;justify-content:space-between}
+.grupo{display:flex;gap:2px;background:var(--raised);border-radius:9px;padding:3px}
+.grupo button{padding:7px 11px;border-radius:7px;font-size:13px;font-weight:600;
+  color:var(--muted);min-width:38px}
+.grupo button[aria-pressed="true"]{background:var(--surface);color:var(--ink);
+  box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.tons{display:flex;gap:5px;overflow-x:auto;padding:9px 12px;background:var(--surface);
+  border-top:1px solid var(--line);scrollbar-width:none}
+.tons::-webkit-scrollbar{display:none}
+.tons button{flex:0 0 auto;font-family:var(--mono);font-weight:600;font-size:15px;
+  padding:7px 12px;border-radius:8px;background:var(--raised);color:var(--muted)}
+.tons button[aria-pressed="true"]{background:var(--cifra);color:#fff}
+.rodape{position:fixed;left:0;right:0;bottom:0;z-index:30}
+
+/* ---------- lista ---------- */
+.busca{position:sticky;top:0;z-index:10;background:var(--surface);
+  border-bottom:1px solid var(--line);padding:10px 14px}
+.busca input{width:100%;font:inherit;font-size:17px;padding:11px 13px;
+  border:1px solid var(--line);border-radius:10px;background:var(--ground);
+  color:var(--ink)}
+.busca input::placeholder{color:var(--muted)}
+.lista{list-style:none;margin:0;padding:6px 0 40px}
+.lista li{border-bottom:1px solid var(--line)}
+.lista button{display:flex;width:100%;align-items:center;gap:12px;
+  padding:14px 14px;text-align:left}
+.lista .nome{flex:1 1 auto;min-width:0}
+.lista .nome b{display:block;font-size:17px;font-weight:600;line-height:1.25}
+.lista .nome>span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.lista .tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.lista .tag{font-size:11px;font-weight:600;color:var(--muted);
+  background:var(--raised);border-radius:5px;padding:3px 7px;letter-spacing:.02em}
+/* o primeiro tema é o principal — a ordem carrega informação */
+.lista .tag:first-child{color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.busca+.chips{border-bottom:1px solid var(--line);position:sticky;top:63px;z-index:9}
+.lista .k{flex:0 0 auto;font-family:var(--mono);font-weight:600;font-size:15px;
+  color:var(--cifra);background:var(--raised);border-radius:6px;padding:5px 9px}
+.lista .indisp{opacity:.45}
+.nota{padding:16px 14px;color:var(--muted);font-size:13px;line-height:1.5;
+  border-top:1px solid var(--line);margin-top:8px}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:no-preference){
+  .secao{scroll-margin-top:104px}
+}
+</style>
+
+<div id="tela-lista" hidden>
+  <div class="busca"><input id="q" type="search"
+    placeholder="Nome, artista ou tema" autocomplete="off" aria-label="Buscar"></div>
+  <nav class="chips" id="temas" aria-label="Temas"></nav>
+  <ul class="lista" id="lista"></ul>
+  <p class="nota" id="nada" hidden>Nada com esse nome nem nesse tema.</p>
+  <p class="nota">Protótipo com 3 das 13 do repertório — as demais aparecem
+  para você julgar a lista, mas não abrem. Os temas são chute meu a partir da
+  letra: até três por música, o primeiro sendo o principal.</p>
+</div>
+
+<div id="tela-musica">
+  <header class="topo">
+    <div class="topo-l1">
+      <button class="voltar" id="btn-voltar" aria-label="Voltar para a lista">&#8592;</button>
+      <div class="tit"><b id="h-tit"></b><span id="h-art"></span></div>
+      <div class="tom" id="h-tom"></div>
+    </div>
+    <div class="agora">Agora: <b id="h-agora">—</b></div>
+  </header>
+  <nav class="chips" id="chips" aria-label="Seções"></nav>
+  <main id="corpo"></main>
+</div>
+
+<div class="rodape" id="rodape">
+  <div class="tons" id="tons"></div>
+  <div class="barra">
+    <div class="grupo" role="group" aria-label="Tamanho da letra">
+      <button id="menor" aria-label="Diminuir letra">A&minus;</button>
+      <button id="maior" aria-label="Aumentar letra">A+</button>
+    </div>
+    <div class="grupo" role="group" aria-label="Repetições">
+      <button id="compacto" aria-pressed="false">Compacto</button>
+    </div>
+    <div class="grupo" role="group" aria-label="Tema">
+      <button data-tema="auto" aria-pressed="true">Auto</button>
+      <button data-tema="light" aria-pressed="false">Claro</button>
+      <button data-tema="dark" aria-pressed="false">Escuro</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DADOS = [{"slug":"vitorioso-es","titulo":"VITORIOSO ÉS","artista":"Gabriel Guedes","tom":"G","momento":null,"corpo":[["lab","[Verso 1]"],["pos"," G"],["let","Lutamos com armas de fé"],["pos","  Em"],["let","E nada irá resistir"],["pos","                       C"],["let","Enquanto adoramos"],["pos","          Em                      D/F#"],["let","Em meio às tribulações"],["pos","       G"],["let","O nosso Deus é vencedor"],["pos","                  | C | Am |"],["let","Nós o adoramos"],["b",null],["lab","[Refrão]"],["pos","Em              C"],["let","    Vitorioso és"],["pos","                          G"],["let","Na tempestade estás"],["pos","         D                 Em"],["let","Teu nome infalível é"],["pos","                             C"],["let","Os reinos vêm e vão"],["pos","                    G"],["let","Teu trono acima está"],["pos","         D                    C"],["let","Teu nome imutável é"],["b",null],["lab","[Verso 2]"],["pos","    G"],["let","O inferno não prevaleceu"],["pos"," Em"],["let","E nada irá me impedir"],["pos","                 C"],["let","Eu te adorarei"],["pos"," Em                                    D/F#"],["let","Muralhas vão estremecer"],["pos"," G"],["let","Cadeias irão se romper"],["pos","                         | C | Am |"],["let","Enquanto adoramos"],["b",null],["lab","[Refrão]"],["pos","Em              C"],["let","    Vitorioso és"],["pos","                          G"],["let","Na tempestade estás"],["pos","         D                 Em"],["let","Teu nome infalível é"],["pos","                             C"],["let","Os reinos vêm e vão"],["pos","                    G"],["let","Teu trono acima está"],["pos","         D                    C"],["let","Teu nome imutável é"],["b",null],["labc",["[Interlúdio]","| C | D | Em | G/B |"]],["b",null],["lab","[Ponte] 2x"],["cif","| C | D | Em | G/B |"],["let","Como um trovão impetuoso,"],["let","Poderoso és, grandioso és"],["let","Que venha o céu, nós proclamamos"],["let","Poderoso és, grandioso és"],["b",null],["lab","[Refrão]"],["pos","Em              C"],["let","    Vitorioso és"],["pos","                          G"],["let","Na tempestade estás"],["pos","         D                 Em"],["let","Teu nome infalível é"],["pos","                             C"],["let","Os reinos vêm e vão"],["pos","                    G"],["let","Teu trono acima está"],["pos","         D                    C"],["let","Teu nome imutável é"],["b",null],["lab","[Ponte] 2x"],["cif","| C | D | Em | G/B |"],["let","Como um trovão impetuoso,"],["let","Poderoso és, grandioso és"],["let","Que venha o céu, nós proclamamos"],["let","Poderoso és, grandioso és"],["b",null],["labc",["[Fim]","| G | Em | Am | D |"]]]},{"slug":"eu-me-rendo","titulo":"EU ME RENDO","artista":"Renascer Praise","tom":"B","momento":null,"corpo":[["labc",["[Intro]","|: B9 | B7M | G#m7(9) | % :|"]],["b",null],["lab","[Verso 1]"],["cif","| B9 | B7M | E7M | % |"],["let","A Ti eu vou clamar pois tudo"],["let","vem de ti e tudo está em Ti"],["cif","| B9 | B7M | E7M | E7M B/D# |"],["let","Por Ti vou caminhar,"],["let","tu és a direção o sol a me guiar"],["b",null],["lab","[Ponte]"],["cif","| C#m7 | F#sus4 F# |"],["let","Tudo pode passar"],["cif","| B7M D#m7 | E9 B/D# |"],["let","Teu amor jamais me deixará"],["cif","| C#m7 C#m7/B | F# |"],["let","Sempre há de existir"],["cif","| B7M D#m7 | E9 | % |"],["let","Novo amanhã preparado pra mim"],["b",null],["lab","[Verso 1]"],["cif","| B9 | B7M | E7M | % |"],["let","A Ti eu vou clamar pois tudo"],["let","vem de ti e tudo está em Ti"],["cif","| B9 | B7M | E7M | E7M B/D# |"],["let","Por Ti vou caminhar,"],["let","tu és a direção o sol a me guiar"],["b",null],["lab","[Ponte]"],["cif","| C#m7 | F#sus4 F# |"],["let","Tudo pode passar"],["cif","| B7M D#m7 | E9 B/D# |"],["let","Teu amor jamais me deixará"],["cif","| C#m7 C#m7/B | F# |"],["let","Sempre há de existir"],["cif","| B7M D#m7 |: E9 | % :|"],["let","Novo amanhã preparado pra mim"],["cif","| E9 | F# |"],["let","preparado pra mim"],["b",null],["lab","[Refrão]"],["cif","|: B9 | F# | G#m7 | E9 :|"],["let","Eu me rendo aos Teus pés"],["let","és tudo que eu preciso pra viver"],["let","Eu me lanço em Teus braços"],["let","onde encontro meu refúgio"],["cif","| B | D#m7 | E9 | % |"],["let","Jesus, eis-me aqui!"],["cif","| G#m7(9) | F#/A# | E9 | % |"],["let","Jesus, eis-me aqui!"],["b",null],["labc",["[Intro]","| B9 | B7M | G#m7(9) | % |"]],["b",null],["lab","[Verso 1]"],["cif","| B9 | B7M | E7M | % |"],["let","A Ti eu vou clamar pois tudo"],["let","vem de ti e tudo está em Ti"],["cif","| B9 | B7M | E7M | E7M B/D# |"],["let","Por Ti vou caminhar,"],["let","tu és a direção o sol a me guiar"],["b",null],["lab","[Ponte]"],["cif","| C#m7 | F#sus4 F# |"],["let","Tudo pode passar"],["cif","| B7M D#m7 | E9 B/D# |"],["let","Teu amor jamais me deixará"],["cif","| C#m7 C#m7/B | F# |"],["let","Sempre há de existir"],["cif","| B7M D#m7 |: E9 | % :|"],["let","Novo amanhã preparado pra mim"],["cif","| E9 | F# |"],["let","preparado pra mim"],["b",null],["lab","[Refrão]"],["cif","|: B9 | F# | G#m7 | E9 :|"],["let","Eu me rendo aos Teus pés"],["let","és tudo que eu preciso pra viver"],["let","Eu me lanço em Teus braços"],["let","onde encontro meu refúgio"],["cif","| B | D#m7 | E9 | % |"],["let","Jesus, eis-me aqui!"],["cif","| G#m7(9) | F#/A# | E9 | % |"],["let","Jesus, eis-me aqui!"]]},{"slug":"quebrantado","titulo":"QUEBRANTADO","artista":"Vineyard","tom":"G","momento":"Ofertório","corpo":[["labc",["[Intro]","| C | Am | Em | D |"]],["b",null],["lab","[Verso 1]"],["cif","| G | % | D | % |"],["let","Eu olho para cruz e para cruz eu vou"],["cif","| Em | % | C | % |"],["let","Do seu sofrer participar, da sua obra eu vou cantar"],["cif","| G | % | D | % |"],["let","Meu Salvador, na cruz mostrou"],["cif","| Em | % | C | Am |"],["let","o amor do Pai, o justo Deus"],["b",null],["lab","[Refrão]"],["cif","| G | % | Em | % |"],["let","Pela cruz me chamou,"],["let","gentilmente me atraiu"],["cif","| D | % | C | % |"],["let","E eu, sem palavras me aproximo"],["let","quebrantado por seu amor"],["b",null],["labc",["[Interlúdio]","| C | Am | Em | D |"]],["cif","| C | Am | Em | % |"],["b",null],["lab","[Verso 2]"],["cif","| G | % | D | % |"],["let","Imerecida vida de graça recebi"],["cif","| Em | % | C | % |"],["let","por sua cruz da morte me livrou"],["cif","| G | % | D | % |"],["let","Trouxe-me a vida, eu estava condenado"],["cif","| Em | % | C | % |"],["let","Mas agora pela cruz eu fui reconciliado"],["b",null],["lab","[Refrão] 3x"],["cif","| C | D | Em | G/B |"],["let","Pela cruz me chamou,"],["let","gentilmente me atraiu"],["cif","| C | D | Em | G/B |"],["let","E eu, sem palavras me aproximo"],["let","quebrantado por seu amor"],["b",null],["lab","[Ponte] 2x"],["cif","|: Am | % | C | % :|"],["let","Impressionante é o seu amor"],["let","Me redimiu e me mostrou o quanto é fiel"]]}];
+
+/* ---------------- transposição: intervalo, letra preservada ---------------- */
+const LETRAS=['C','D','E','F','G','A','B'];
+const PC={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+const ACID={'':0,'#':1,'b':-1,'##':2,'bb':-2};
+const INV={0:'',1:'#','-1':'b',2:'##','-2':'bb'};
+const RE=/^([A-G])(#{1,2}|b{1,2})?([\s\S]*)$/;
+const ESTRUT=new Set(['|','|:',':|','%','/']);
+
+function intervalo(o,d){
+  const a=RE.exec(o),b=RE.exec(d);
+  return [((LETRAS.indexOf(b[1])-LETRAS.indexOf(a[1]))%7+7)%7,
+          (((PC[b[1]]+ACID[b[2]||''])-(PC[a[1]]+ACID[a[2]||'']))%12+12)%12];
+}
+function nota(n,p,s){
+  const m=RE.exec(n),nova=LETRAS[(LETRAS.indexOf(m[1])+p)%7];
+  const alvo=((PC[m[1]]+ACID[m[2]||'']+s)%12+12)%12;
+  let d=((alvo-PC[nova])%12+12)%12; if(d>6)d-=12;
+  return nova+(INV[d]??'');
+}
+function acorde(t,p,s){
+  if(ESTRUT.has(t)||!RE.test(t))return t;
+  if(t.includes('/')){const i=t.indexOf('/');
+    return acorde(t.slice(0,i),p,s)+'/'+acorde(t.slice(i+1),p,s);}
+  const m=RE.exec(t);return nota(m[1]+(m[2]||''),p,s)+m[3];
+}
+const compasso=(l,p,s)=>l.replace(/\S+/g,t=>acorde(t,p,s));
+
+/* posicional: reancora por coluna; colisão por alargamento separa com 1 espaço */
+function posicional(l,p,s){
+  const it=[...l.matchAll(/\S+/g)].map(m=>[m.index,m[0]]);
+  if(!it.length)return l;
+  let out='',fimAnterior=-1;
+  for(const [col,tok] of it){
+    const gapOriginal=fimAnterior<0?col:col-fimAnterior;
+    const gap=col-out.length;
+    if(out.length&&gapOriginal>0&&gap<=0)out+=' ';
+    else if(gap>0)out+=' '.repeat(gap);
+    out+=acorde(tok,p,s);
+    fimAnterior=col+tok.length;
+  }
+  return out;
+}
+const limparLetra=t=>t.replace(/_/g,'');
+
+/* ---------------- estado ---------------- */
+const TONS=['C','C#','Db','D','Eb','E','F','F#','Gb','G','G#','Ab','A','Bb','B'];
+const st={slug:'vitorioso-es',tom:null,compacto:false,base:19,tema:'auto'};
+const $=id=>document.getElementById(id);
+const acha=s=>DADOS.find(m=>m.slug===s);
+
+/* Divide (linha de acorde, linha de letra) em blocos acorde-sobre-sílaba, que
+   quebram junto. É o que dispensa rolagem horizontal sem perder alinhamento. */
+function pares(cifra,letra){
+  const it=[...cifra.matchAll(/\S+/g)].map(m=>[m.index,m[0]]);
+  const segs=[];
+  if(!it.length)return [['',letra]];
+  if(it[0][0]>0)segs.push(['',letra.slice(0,it[0][0])]);
+  it.forEach(([col,tok],i)=>{
+    const fim=i+1<it.length?it[i+1][0]:letra.length;
+    segs.push([tok,letra.slice(col,Math.max(col,fim))]);
+  });
+  return segs;
+}
+
+function blocos(m){
+  const out=[];let atual=null;
+  for(const [tipo,txt] of m.corpo){
+    if(tipo==='lab'||tipo==='labc'){
+      if(atual)out.push(atual);
+      atual={rot:tipo==='labc'?txt[0]:txt,cif:tipo==='labc'?txt[1]:null,linhas:[]};
+    }else{
+      if(!atual)atual={rot:null,cif:null,linhas:[]};
+      atual.linhas.push([tipo,txt]);
+    }
+  }
+  if(atual)out.push(atual);
+  return out;
+}
+
+function render(){
+  const m=acha(st.slug);
+  const tom=st.tom||m.tom;
+  const [p,s]=intervalo(m.tom,tom);
+  document.documentElement.style.setProperty('--base',st.base+'px');
+  $('h-tit').textContent=m.titulo;
+  $('h-art').textContent=m.artista;
+  $('h-tom').textContent=tom;
+
+  const bs=blocos(m),vistos=new Map(),corpo=$('corpo'),chips=$('chips');
+  corpo.innerHTML='';chips.innerHTML='';
+
+  bs.forEach((b,i)=>{
+    const assinatura=JSON.stringify(b.linhas);
+    const primeiraVez=!vistos.has(assinatura);
+    if(primeiraVez)vistos.set(assinatura,i);
+
+    const sec=document.createElement('section');
+    sec.className='secao';sec.id='s'+i;
+    if(b.rot){
+      const h=document.createElement('h2');h.className='rot';
+      h.append(b.rot);
+      if(b.cif){const c=document.createElement('span');c.className='inline';
+        c.textContent=compasso(b.cif,p,s);h.append(c);}
+      sec.append(h);
+      const chip=document.createElement('button');
+      chip.className='chip';chip.textContent=b.rot.replace(/[\[\]]/g,'');
+      chip.dataset.alvo='s'+i;
+      chip.onclick=()=>document.getElementById('s'+i)
+        .scrollIntoView({behavior:'smooth',block:'start'});
+      chips.append(chip);
+    }
+
+    if(st.compacto&&!primeiraVez&&b.linhas.length){
+      const r=document.createElement('div');r.className='repetida';
+      r.innerHTML='igual a <b></b><em>toca de novo</em>';
+      r.querySelector('b').textContent=bs[vistos.get(assinatura)].rot||'antes';
+      sec.append(r);
+    }else{
+      for(let j=0;j<b.linhas.length;j++){
+        const [tipo,txt]=b.linhas[j];
+        const prox=b.linhas[j+1];
+        if(tipo==='pos'&&prox&&prox[0]==='let'){
+          const d=document.createElement('div');d.className='par';
+          for(const [ch,ly] of pares(posicional(txt,p,s),limparLetra(prox[1]))){
+            const g=document.createElement('span');g.className='seg';
+            const a=document.createElement('span');a.className='ch';a.textContent=ch;
+            const l=document.createElement('span');l.className='ly';l.textContent=ly;
+            g.append(a,l);d.append(g);
+          }
+          sec.append(d);j++;continue;
+        }
+        const e=document.createElement('div');
+        if(tipo==='b'){e.className='vazio';}
+        else if(tipo==='cif'){e.className='cif';e.textContent=compasso(txt,p,s);}
+        else if(tipo==='pos'){e.className='cif';e.textContent=posicional(txt,p,s);}
+        else if(tipo==='anot'){e.className='anot';e.textContent=txt;}
+        else{e.className='let';e.textContent=limparLetra(txt);}
+        sec.append(e);
+      }
+    }
+    corpo.append(sec);
+  });
+
+  const tons=$('tons');tons.innerHTML='';
+  for(const t of TONS){
+    const b=document.createElement('button');b.textContent=t;
+    b.setAttribute('aria-pressed',String(t===tom));
+    b.onclick=()=>{st.tom=t;render();};
+    tons.append(b);
+  }
+  marcarSecao();
+}
+
+function marcarSecao(){
+  const secs=[...document.querySelectorAll('.secao')];
+  const y=window.scrollY+120;let atual=null;
+  for(const s of secs)if(s.offsetTop<=y)atual=s;
+  const rot=atual?.querySelector('.rot');
+  $('h-agora').textContent=rot?rot.firstChild.textContent.trim():'—';
+  document.querySelectorAll('.chip').forEach(c=>
+    c.setAttribute('aria-current',String(atual&&c.dataset.alvo===atual.id)));
+  const ativo=document.querySelector('.chip[aria-current="true"]');
+  if(ativo)ativo.scrollIntoView({block:'nearest',inline:'nearest'});
+}
+addEventListener('scroll',()=>requestAnimationFrame(marcarSecao),{passive:true});
+
+/* ---------------- lista ---------------- */
+/* Até 3 temas por música, EM ORDEM DE RELEVÂNCIA — o primeiro é o principal.
+   A ordem carrega informação, então nunca ordenar alfabeticamente na exibição.
+   Os valores abaixo são chute meu a partir da letra, só para a busca ter o que
+   filtrar. Vocabulário é aberto: ver padrao_cifras_caio.md. */
+const TODAS=[
+ ['vitorioso-es','VITORIOSO ÉS','Gabriel Guedes','G',1,['fé','adoração']],
+ ['eu-me-rendo','EU ME RENDO','Renascer Praise','B',1,['entrega','intimidade']],
+ ['quebrantado','QUEBRANTADO','Vineyard','G',1,['cruz','arrependimento','gratidão']],
+ ['ah-jesus','AH, JESUS / CORAÇÃO IGUAL AO TEU','Julliany Souza','G',0,['arrependimento','entrega','cruz']],
+ ['a-maior-honra','A MAIOR HONRA','Julliany Souza','Ab',0,['entrega','cruz']],
+ ['emaus','EMAÚS','Morada','B',0,['ceia','intimidade']],
+ ['exaltamos-yahweh','EXALTAMOS YAHWEH','FHOP','E',0,['adoração','exaltação']],
+ ['tua-forte-mao','TUA FORTE MÃO','O Canto das Igrejas','F',0,['confiança','gratidão']],
+ ['nao-ha-um-nome-igual','NÃO HÁ UM NOME IGUAL','Ministério Avivah','F',0,['exaltação','adoração']],
+ ['alem-do-impossivel','ALÉM DO IMPOSSÍVEL','Felipe Rodrigues','C',0,['fé','confiança']],
+ ['pai-de-multidoes','PAI DE MULTIDÕES','Fernandinho','B',0,['missão','fé']],
+ ['eu-vou-construir','EU VOU CONSTRUIR','Nívea Soares','C',0,['entrega','adoração']],
+ ['teu-toque','TEU TOQUE','Gabi Sampaio','Bb',0,['intimidade','entrega']]];
+
+const TEMAS=[...new Set(TODAS.flatMap(m=>m[5]))].sort((a,b)=>a.localeCompare(b,'pt'));
+let temaAtivo=null;
+
+function renderTemas(){
+  const nav=$('temas');nav.innerHTML='';
+  for(const t of [null,...TEMAS]){
+    const b=document.createElement('button');
+    b.className='chip';
+    b.textContent=t??'Todos';
+    b.setAttribute('aria-current',String(t===temaAtivo));
+    b.onclick=()=>{temaAtivo=t===temaAtivo?null:t;renderTemas();
+      renderLista($('q').value);};
+    nav.append(b);
+  }
+}
+
+function renderLista(filtro=''){
+  const f=filtro.trim().toLowerCase();
+  const ul=$('lista');ul.innerHTML='';
+  let n=0;
+  for(const [slug,tit,art,tom,ok,temas] of TODAS){
+    if(temaAtivo&&!temas.includes(temaAtivo))continue;
+    if(f&&![tit,art,...temas].join(' ').toLowerCase().includes(f))continue;
+    n++;
+    const li=document.createElement('li');
+    const b=document.createElement('button');
+    if(!ok)b.className='indisp';
+    b.innerHTML='<span class="nome"><b></b><span></span>'+
+      '<span class="tags"></span></span><span class="k"></span>';
+    b.querySelector('b').textContent=tit;
+    b.querySelector('.nome span').textContent=art;
+    for(const t of temas){
+      const s=document.createElement('span');s.className='tag';s.textContent=t;
+      b.querySelector('.tags').append(s);
+    }
+    b.querySelector('.k').textContent=tom;
+    if(ok)b.onclick=()=>{st.slug=slug;st.tom=null;mostrar('musica');render();scrollTo(0,0);};
+    else b.onclick=()=>b.animate([{opacity:.45},{opacity:.15},{opacity:.45}],220);
+    li.append(b);ul.append(li);
+  }
+  $('nada').hidden=n>0;
+}
+function mostrar(qual){
+  $('tela-lista').hidden=qual!=='lista';
+  $('tela-musica').hidden=qual!=='musica';
+  $('rodape').hidden=qual!=='musica';
+}
+$('q').addEventListener('input',e=>renderLista(e.target.value));
+$('btn-voltar').onclick=()=>{mostrar('lista');scrollTo(0,0);};
+
+/* ---------------- controles ---------------- */
+$('maior').onclick=()=>{st.base=Math.min(28,st.base+1);render();};
+$('menor').onclick=()=>{st.base=Math.max(15,st.base-1);render();};
+$('compacto').onclick=e=>{st.compacto=!st.compacto;
+  e.currentTarget.setAttribute('aria-pressed',String(st.compacto));render();};
+document.querySelectorAll('[data-tema]').forEach(b=>b.onclick=()=>{
+  st.tema=b.dataset.tema;
+  if(st.tema==='auto')document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme',st.tema);
+  document.querySelectorAll('[data-tema]').forEach(o=>
+    o.setAttribute('aria-pressed',String(o===b)));
+});
+
+renderTemas();renderLista();render();mostrar('lista');
+</script>
