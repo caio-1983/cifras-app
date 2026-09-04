@@ -298,3 +298,18 @@ test('importarCifraCrua: linha posicional com "2x" não é anotada — falha alt
   const cru = ['X', 'Tom: Am', '', '~Am        Em7       F7+    2x', 'Ele é o Grande Eu Sou'].join('\n');
   assert.throws(() => importarCifraCrua(cru, 'x.cifra'), /nota inválida: "2x"/);
 });
+
+test('importarCifraCrua: opção "tom" preenche o cabeçalho só quando o documento não traz nenhum', () => {
+  const semTom = ['A MAIOR HONRA', '', '[Intro] | Ab | Eb |'].join('\n');
+  assert.ok(importarCifraCrua(semTom, 'a-maior-honra.cifra', { tom: 'Ab' }).includes('tom: Ab'));
+});
+
+test('importarCifraCrua: o documento manda — a opção nunca sobrepõe o tom declarado', () => {
+  // O nome do arquivo é metadado editorial e pode estar desatualizado; o
+  // corpo é a cifra de verdade. Deixar a opção ganhar corromperia toda
+  // transposição futura de um arquivo que estava certo.
+  const comTom = ['X', 'Tom: C', '', '[Intro] | C | G |'].join('\n');
+  const cifra = importarCifraCrua(comTom, 'x.cifra', { tom: 'Ab' });
+  assert.ok(cifra.includes('tom: C'), cifra);
+  assert.ok(!cifra.includes('tom: Ab'), cifra);
+});

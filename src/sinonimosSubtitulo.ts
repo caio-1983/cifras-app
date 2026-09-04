@@ -16,7 +16,10 @@ const TABELA: EntradaSinonimo[] = [
   { canonico: 'Ponte', variantes: ['ponte'] },
   { canonico: 'Rampa', variantes: ['rampa'] },
   { canonico: 'Tag', variantes: ['tag'] },
-  { canonico: 'Solo', variantes: ['solo', 'só piano', 'so piano'] },
+  // "só piano" NÃO é sinônimo de Solo: diz QUAL instrumento toca, e essa
+  // informação é do arranjo. Evidência: musicas/ruja-o-leao.cifra, curado
+  // à mão pelo usuário, preserva "[Só piano]". Vira rótulo livre.
+  { canonico: 'Solo', variantes: ['solo'] },
   { canonico: 'Instrumental', variantes: ['instrumental'] },
   { canonico: 'Versos', variantes: ['versos'] },
   { canonico: 'Pontes', variantes: ['pontes'] },
@@ -78,7 +81,20 @@ export function esperaCorpoAbaixo(rotuloComColchetes: string): boolean {
   const m = /^\[([^\]]*)\]/.exec(rotuloComColchetes.trim());
   if (!m) return true;
   const base = m[1]!.replace(/\s+\d+$/, '').trim();
-  return !ROTULOS_SEM_CORPO_ABAIXO.has(base);
+  if (ROTULOS_SEM_CORPO_ABAIXO.has(base)) return false;
+
+  // Qualificador depois do rótulo instrumental: `[Intro teclado]`,
+  // `[Intro todos FORTE]`, `[Intro 2X]`, `[Final da música]`. Comparar o
+  // rótulo inteiro fazia o importador RECUSAR um arquivo que já estava
+  // certo — `musicas/ruja-o-leao.cifra`, curado à mão, tem exatamente
+  // `[Intro teclado]` sozinho seguido de `[Intro todos FORTE] | Am |...`.
+  //
+  // Só vale para os instrumentais: em `TU ÉS BOM` um `[Refrão]` vazio
+  // seguido de outro marcador também existe, e ali falhar alto é o
+  // comportamento certo — foi resolvido com curadoria humana. Por isso a
+  // regra olha a classe do rótulo, não a vizinhança da linha.
+  const primeiraPalavra = base.split(/\s+/)[0] ?? '';
+  return !ROTULOS_SEM_CORPO_ABAIXO.has(primeiraPalavra);
 }
 
 export interface ResultadoNormalizacaoSubtitulo {

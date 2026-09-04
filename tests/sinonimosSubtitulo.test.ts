@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizarSubtitulo } from '../src/sinonimosSubtitulo.ts';
+import { normalizarSubtitulo, esperaCorpoAbaixo } from '../src/sinonimosSubtitulo.ts';
 
 test('normalizarSubtitulo: variantes de Intro fora de colchete (achado item 3)', () => {
   assert.deepEqual(normalizarSubtitulo('INTRO'), { texto: '[Intro]', reconhecido: true });
@@ -8,9 +8,14 @@ test('normalizarSubtitulo: variantes de Intro fora de colchete (achado item 3)',
   assert.deepEqual(normalizarSubtitulo('{intro}'), { texto: '[Intro]', reconhecido: true });
 });
 
-test('normalizarSubtitulo: Solo bate por variantes lexicalmente diferentes (solo, só piano)', () => {
+test('normalizarSubtitulo: "[Só piano]" é preservado, não vira "[Solo]" — diz qual instrumento toca', () => {
+  // O arquivo curado à mão (musicas/ruja-o-leao.cifra) preserva "[Só
+  // piano]". Normalizar para "[Solo]" jogaria fora informação de arranjo.
+  assert.deepEqual(normalizarSubtitulo('[Só piano]'), { texto: '[Só piano]', reconhecido: false });
+});
+
+test('normalizarSubtitulo: Solo bate por variantes lexicalmente diferentes (solo)', () => {
   assert.deepEqual(normalizarSubtitulo('{solo}'), { texto: '[Solo]', reconhecido: true });
-  assert.deepEqual(normalizarSubtitulo('[Só piano]'), { texto: '[Solo]', reconhecido: true });
   assert.deepEqual(normalizarSubtitulo('[Solo]'), { texto: '[Solo]', reconhecido: true });
 });
 
@@ -77,4 +82,25 @@ test('normalizarSubtitulo: núcleo já canônico do formato-cifra.md permanece e
   for (const rotulo of ['Refrão', 'Ponte', 'Rampa', 'Tag', 'Pré-refrão', 'Intro', 'Interlúdio', 'Modulação']) {
     assert.deepEqual(normalizarSubtitulo(`[${rotulo}]`), { texto: `[${rotulo}]`, reconhecido: true });
   }
+});
+
+test('esperaCorpoAbaixo: rótulo instrumental com qualificador é reconhecido pela base (caso real, RUJA O LEÃO)', () => {
+  // "[Intro teclado]" sozinho, seguido de "[Intro todos FORTE] | Am |...",
+  // é como o próprio usuário curou musicas/ruja-o-leao.cifra à mão. Só
+  // olhando o rótulo inteiro, "Intro teclado" não batia com "Intro" e o
+  // importador recusava um arquivo que já estava certo.
+  assert.equal(esperaCorpoAbaixo('[Intro teclado]'), false);
+  assert.equal(esperaCorpoAbaixo('[Intro todos FORTE]'), false);
+  assert.equal(esperaCorpoAbaixo('[Intro 2X]'), false);
+  assert.equal(esperaCorpoAbaixo('[Final da música]'), false);
+});
+
+test('esperaCorpoAbaixo: seção com letra continua esperando corpo, mesmo com qualificador', () => {
+  // O contraponto que não pode ceder: em TU ÉS BOM o "{refrão}" vazio
+  // também vem seguido de outro marcador, e ali falhar alto é o certo —
+  // foi resolvido com curadoria humana, não com código.
+  assert.equal(esperaCorpoAbaixo('[Refrão]'), true);
+  assert.equal(esperaCorpoAbaixo('[Refrão Final]'), true);
+  assert.equal(esperaCorpoAbaixo('[Verso 2]'), true);
+  assert.equal(esperaCorpoAbaixo('[Ponte]'), true);
 });

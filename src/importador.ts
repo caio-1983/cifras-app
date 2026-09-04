@@ -202,7 +202,24 @@ function recusarAcordesGrudados(musica: Musica, nomeArquivo?: string): void {
  * de não fechar vocabulário/heurística com amostra pequena, ver
  * `docs/plano-camada-formato.md`).
  */
-export function importarCifraCrua(textoCru: string, nomeArquivo?: string): string {
+export interface OpcoesImportacao {
+  /**
+   * Tom a usar QUANDO o documento não traz `Tom:` nenhum — 18 dos 421
+   * arquivos do acervo são assim, com o tom vivendo só no nome do arquivo.
+   * Nunca sobrepõe um tom que o documento declare: o documento manda.
+   *
+   * O importador não descobre isso sozinho de propósito. Quem chama é que
+   * sabe de onde o tom veio (`tomDoTituloDrive`, curadoria), e assim a
+   * inferência fica visível no lote em vez de escondida aqui.
+   */
+  tom?: string;
+}
+
+export function importarCifraCrua(
+  textoCru: string,
+  nomeArquivo?: string,
+  opcoes: OpcoesImportacao = {},
+): string {
   // BOM (comum em exportação de Google Doc convertido) e quebra de linha
   // \r\n (Windows/Docs): sem isso, o \r sobra como caractere de verdade em
   // cada linha e desalinha a coluna de qualquer linha posicional, e o BOM
@@ -212,7 +229,10 @@ export function importarCifraCrua(textoCru: string, nomeArquivo?: string): strin
   const linhasCruas = textoLimpo.split('\n');
   if (linhasCruas[linhasCruas.length - 1] === '') linhasCruas.pop();
 
-  const { cabecalho, resto } = normalizarCabecalhoBruto(linhasCruas);
+  const { cabecalho: cabecalhoCru, resto } = normalizarCabecalhoBruto(linhasCruas);
+  const temTom = cabecalhoCru.some((linha) => linha.startsWith('tom:'));
+  const cabecalho =
+    temTom || opcoes.tom === undefined ? cabecalhoCru : [...cabecalhoCru, `tom: ${opcoes.tom}`];
 
   const semTrailing = resto.map(semEspacoNoFinal);
   const semTabs = semTrailing.map((linha) => expandirTabs(linha));

@@ -7,12 +7,29 @@
  *
  *   node scripts/medir-importacao.mjs [diretório]   (padrão: bruto/txt)
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { importarCifraCrua } from '../src/importador.ts';
+import { tomDoTituloDrive } from '../src/tomDoTitulo.ts';
 
 const diretorio = process.argv[2] ?? 'bruto/txt';
 const arquivos = readdirSync(diretorio).filter((n) => n.endsWith('.txt')).sort();
+
+/**
+ * Tom vindo do TÍTULO do documento no Drive, para os arquivos que não
+ * trazem `Tom:` no corpo. Vem do inventário que o Apps Script grava junto,
+ * não do conteúdo — o importador nunca adivinha, é o lote que decide.
+ */
+const tomPorArquivo = new Map();
+const inventario = join(diretorio, '_inventario-completo.tsv');
+if (existsSync(inventario)) {
+  for (const linha of readFileSync(inventario, 'utf8').split('\n').slice(1)) {
+    const [tituloDrive, , slug] = linha.split('\t');
+    if (!slug) continue;
+    const tom = tomDoTituloDrive(tituloDrive ?? '');
+    if (tom !== undefined) tomPorArquivo.set(slug.trim(), tom);
+  }
+}
 
 const ok = [];
 const falhas = new Map(); // causa normalizada -> [{arquivo, mensagem}]
@@ -28,7 +45,7 @@ function causa(mensagem) {
 for (const nome of arquivos) {
   const cru = readFileSync(join(diretorio, nome), 'utf8');
   try {
-    const cifra = importarCifraCrua(cru, nome);
+    const cifra = importarCifraCrua(cru, nome, { tom: tomPorArquivo.get(nome) });
     ok.push({ nome, linhas: cifra.split('\n').length });
   } catch (erro) {
     const c = causa(erro.message);
