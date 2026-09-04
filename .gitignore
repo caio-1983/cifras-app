@@ -10,3 +10,7 @@ __pycache__/
 # configuração de sessão/pessoal do Claude Code (o compartilhado é .claude/settings.json)
 .claude/settings.local.json
 .claude/*.local.json
+
+# .txt crus exportados do Drive: insumo reproduzível pelo Apps Script
+# (docs/scripts/exportar-txt-cru.gs.js). O que se versiona é o .cifra curado.
+bruto/txt/
