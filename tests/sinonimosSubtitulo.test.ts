@@ -104,3 +104,18 @@ test('esperaCorpoAbaixo: seção com letra continua esperando corpo, mesmo com q
   assert.equal(esperaCorpoAbaixo('[Verso 2]'), true);
   assert.equal(esperaCorpoAbaixo('[Ponte]'), true);
 });
+
+test('normalizarSubtitulo: "refrão_2x" (achado real, REINA / DOCE NOME) vira "[Refrão 2x]"', () => {
+  // O separador "_" já era reconhecido para "estrofe_1", mas só antes de
+  // NÚMERO. Aqui o que vem depois é contagem de repetição, e sem isso o
+  // rótulo ficava "[refrão_2x]" — minúsculo, irreconhecível, e sem casar
+  // com o "[Refrão]" anterior na hora de materializar.
+  assert.deepEqual(normalizarSubtitulo('{refrão_2x}'), { texto: '[Refrão 2x]', reconhecido: true });
+  assert.deepEqual(normalizarSubtitulo('{refrão-2x}'), { texto: '[Refrão 2x]', reconhecido: true });
+  assert.deepEqual(normalizarSubtitulo('[ponte_2X]'), { texto: '[Ponte 2X]', reconhecido: true });
+});
+
+test('normalizarSubtitulo: "pré-refrão" continua batendo antes de "refrão" (o hífen dele é do nome)', () => {
+  assert.deepEqual(normalizarSubtitulo('{pré-refrão}'), { texto: '[Pré-refrão]', reconhecido: true });
+  assert.deepEqual(normalizarSubtitulo('{pre-refrao_2x}'), { texto: '[Pré-refrão 2x]', reconhecido: true });
+});

@@ -127,6 +127,16 @@ Ordem:
 música; o entregável do sprint é *músicas únicas importadas*. A tessitura que
 vinha no nome do arquivo (`_C_masculino`) é preservada no campo `tessitura`.
 
+**Estado em 2026-09-04, fim do dia:** os 421 documentos do acervo estão em
+`bruto/txt/` (via `docs/scripts/exportar-acervo-completo.gs.js`), sem nenhuma
+corrupção, e **377 deles (90%) importam limpo**. As 44 falhas restantes são,
+na maioria, curadoria humana: token solto na linha de cifra (erro de digitação
+do documento), 7 arquivos sem tom nem no corpo nem no título, e acorde grudado.
+Medir com `node scripts/medir-importacao.mjs` — ele não grava nada.
+
+Nenhum `.cifra` foi gravado em `musicas/` ainda: a separação arranjo/letra é o
+portão, e vem antes.
+
 Decisões tomadas:
 
 - **Arranjo × letra: um arquivo, dois blocos.** O `.cifra` continua sendo um

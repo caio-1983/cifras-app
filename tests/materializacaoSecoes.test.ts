@@ -195,3 +195,20 @@ test('materializarSecoesReferenciadas: cifra própria NÃO impede materializaç�
     '[Final]',
   ]);
 });
+
+test('materializarSecoesReferenciadas: "[Refrão 2x]" casa com "[Refrão]" — contagem de repetição não muda a seção', () => {
+  const linhas = ['[Refrão]', '| G | Em |', 'Santo', '', '[Refrão 2x]', ''];
+  assert.deepEqual(materializarSecoesReferenciadas(linhas), [
+    '[Refrão]', '| G | Em |', 'Santo', '', '[Refrão 2x]', '| G | Em |', 'Santo', '',
+  ]);
+});
+
+test('materializarSecoesReferenciadas: "[Verso 2]" NÃO casa com "[Verso 1]" — número de seção não é contagem de repetição', () => {
+  // A distinção que não pode escorregar: "2x" é quantas vezes se toca,
+  // "2" é qual seção é. Copiar a letra do Verso 1 para o Verso 2 seria
+  // trocar a letra da música.
+  assert.throws(
+    () => materializarSecoesReferenciadas(['[Verso 1]', '| C |', 'letra do um', '', '[Verso 2]', '']),
+    /seção "\[Verso 2\]".*não há ocorrência anterior/,
+  );
+});

@@ -23,6 +23,28 @@ function encontrarMarcadores(linhas: string[]): Marcador[] {
   return marcadores;
 }
 
+// Contagem de repetição no fim do rótulo: "2x", "4X", "(2x)". Note o "x"
+// obrigatório — é ele que separa QUANTAS VEZES se toca de QUAL seção é.
+// "[Verso 2]" não bate aqui, e é justamente o que impede a letra do Verso 1
+// de ser copiada para o Verso 2, o que trocaria a letra da música.
+const RE_CONTAGEM_REPETICAO = /\s*\(?\d+[xX]\)?\s*$/;
+
+function rotuloBase(rotuloComColchetes: string): string {
+  const m = /^\[([^\]]*)\]/.exec(rotuloComColchetes.trim());
+  if (!m) return rotuloComColchetes.trim();
+  return m[1]!.replace(RE_CONTAGEM_REPETICAO, '').trim().toLowerCase();
+}
+
+/**
+ * true quando os dois rótulos são a mesma seção. `[Refrão 2x]` e `[Refrão]`
+ * são — a contagem diz quantas vezes se repete, não qual seção é (achado
+ * real: `{refrão}` no corpo e `{refrão_2x}` mais adiante, em REINA e
+ * DOCE NOME).
+ */
+function mesmaSecao(a: string, b: string): boolean {
+  return rotuloBase(a) === rotuloBase(b);
+}
+
 /**
  * Decide e aplica a materialização de seções que só remetem a uma anterior
  * (decisão do usuário: sempre repetir o conteúdo, nunca guardar referência
@@ -75,7 +97,7 @@ export function materializarSecoesReferenciadas(linhas: string[]): string[] {
 
     let origem = -1;
     for (let anterior = m - 1; anterior >= 0; anterior--) {
-      if (marcadores[anterior]!.rotulo === marcadores[m]!.rotulo && !semCorpoAbaixo(anterior)) {
+      if (mesmaSecao(marcadores[anterior]!.rotulo, marcadores[m]!.rotulo) && !semCorpoAbaixo(anterior)) {
         origem = anterior;
         break;
       }

@@ -54,8 +54,17 @@ function casarSinonimo(conteudo: string): { rotulo: string; reconhecido: boolean
       if (normalizadoBusca === varianteBusca) {
         return { rotulo: entrada.canonico, reconhecido: true };
       }
-      if (normalizadoBusca.startsWith(varianteBusca + ' ')) {
-        const resto = trimado.slice(variante.length).trim();
+      // O separador entre o rótulo e o qualificador pode ser espaço, "_" ou
+      // "-": `refrão_2x` e `refrão-2x` são achados reais (REINA, DOCE NOME),
+      // e sem isso o rótulo ficava `[refrão_2x]` — minúsculo, irreconhecível,
+      // e sem casar com o `[Refrão]` anterior na materialização.
+      //
+      // A tabela é varrida em ordem, e `Pré-refrão` vem antes de `Refrão`:
+      // o hífen do nome dele é casado como parte da variante, não como
+      // separador.
+      const separador = normalizadoBusca.charAt(varianteBusca.length);
+      if (normalizadoBusca.startsWith(varianteBusca) && [' ', '_', '-'].includes(separador)) {
+        const resto = trimado.slice(variante.length + 1).trim();
         return { rotulo: `${entrada.canonico} ${resto}`, reconhecido: true };
       }
     }
