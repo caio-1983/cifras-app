@@ -4,6 +4,7 @@ import { normalizarSubtitulo } from './sinonimosSubtitulo.ts';
 import { marcarLinhasPosicionaisCruas } from './deteccaoPosicionalCrua.ts';
 import { materializarSecoesReferenciadas } from './materializacaoSecoes.ts';
 import { parseMusica } from './index.ts';
+import type { Musica } from './tipos.ts';
 
 // Uma linha crua é candidata a rótulo de subtítulo quando começa com "["
 // ou "{" (forma já delimitada, sinal inequívoco), ou tem a forma solta
@@ -90,6 +91,42 @@ function normalizarEspacamentoSeForCifra(linha: string): string {
 }
 
 /**
+ * Recusa acorde grudado em outro (`C#Bm7` = `C#`+`Bm7`, `EGF#` =
+ * `E`+`G`+`F#`) — achado real em `EU E MINHA CASA`, onde o documento traz
+ * `| A | B |C#Bm7 | EGF# |`.
+ *
+ * O parser de acorde é opaco quanto a sufixo, de propósito: é o que o torna
+ * imune a notação que a amostra ainda não mostrou. O efeito colateral é que
+ * ele aceita `Bm7` como sufixo de `C#` sem reclamar — e depois que o
+ * espaçamento ao redor da barra é normalizado, um acorde grudado importaria
+ * limpo como um acorde que não existe. Falha silenciosa, o pior modo.
+ *
+ * A regra: **nenhum sufixo começa com maiúscula A-G.** Conferido contra o
+ * acervo validado (673 acordes, 10 sufixos distintos: vazio, `m`, `m7`,
+ * `7`, `9`, `4`, `7+`, `7M`...). Separar automaticamente seria adivinhar
+ * (`C#Bm7` também poderia ser uma notação desconhecida), então o certo é
+ * recusar e mandar para curadoria humana.
+ *
+ * Fica no importador, não no núcleo: a opacidade do `parseAcorde` é
+ * propriedade documentada e validada em produção, e o portão é a importação.
+ */
+function recusarAcordesGrudados(musica: Musica, nomeArquivo?: string): void {
+  const onde = nomeArquivo === undefined ? '' : ` (${nomeArquivo})`;
+  for (const linha of musica.corpo) {
+    if (linha.tipo !== 'cifra' && linha.tipo !== 'posicional') continue;
+    for (const { item } of linha.itens) {
+      if (item.tipo !== 'acorde') continue;
+      if (!/^[A-G]/.test(item.acorde.sufixo)) continue;
+      throw new Error(
+        `acorde "${item.textoOriginal}" parece dois acordes grudados sem espaço${onde} — ` +
+          'nenhum sufixo de acorde começa com maiúscula A-G. Separe à mão antes de importar: ' +
+          'adivinhar onde termina um acorde e começa o outro produziria cifra errada.',
+      );
+    }
+  }
+}
+
+/**
  * Importa uma cifra crua (texto colado do acervo, sem curadoria) e devolve
  * o texto final no formato `.cifra` canônico, pronto para salvar em
  * `musicas/*.cifra`. Encadeia, na ordem certa, as peças já testadas
@@ -154,6 +191,6 @@ export function importarCifraCrua(textoCru: string, nomeArquivo?: string): strin
   const corpoFinal = colapsarLinhasEmBrancoConsecutivas(espacado);
 
   const texto = [...cabecalho, '---', ...corpoFinal].join('\n') + '\n';
-  parseMusica(texto, nomeArquivo);
+  recusarAcordesGrudados(parseMusica(texto, nomeArquivo), nomeArquivo);
   return texto;
 }

@@ -257,3 +257,23 @@ test('importarCifraCrua: linha POSICIONAL nunca é reespaçada — inserir espa�
   const cifra = importarCifraCrua(cru, 'um-so.cifra');
   assert.ok(cifra.includes(posicional), cifra);
 });
+
+test('importarCifraCrua: acorde colado a outro é RECUSADO, não importado como acorde inventado (caso real, EU E MINHA CASA)', () => {
+  // O documento tem "| A | B |C#Bm7 | EGF# |": dois e três acordes grudados
+  // sem espaço. Normalizar o espaçamento ao redor da barra separa "|" de
+  // "C#Bm7", e aí o sufixo opaco do parser aceita "Bm7" como sufixo de C# —
+  // importaria limpo um acorde que não existe. Nenhum sufixo do acervo
+  // validado (673 acordes, 10 sufixos) começa com maiúscula A-G, então isso
+  // é sempre acorde grudado: falhar alto e mandar para curadoria.
+  const cru = ['EU E MINHA CASA', 'Tom: E', '', '[Intro] | A | B |C#Bm7 | EGF# |'].join('\n');
+  assert.throws(
+    () => importarCifraCrua(cru, 'eu-e-minha-casa.cifra'),
+    /C#Bm7.*grudado|grudado.*C#Bm7/i,
+  );
+});
+
+test('importarCifraCrua: sufixo legítimo do acervo continua passando (não é o mesmo que grudado)', () => {
+  const cru = ['X', 'Tom: C', '', '[Intro] | Ab7M | F#m7(5-) | Gm7(11) | C/E | Dm7/A |'].join('\n');
+  const cifra = importarCifraCrua(cru, 'x.cifra');
+  assert.ok(cifra.includes('| Ab7M | F#m7(5-) | Gm7(11) | C/E | Dm7/A |'), cifra);
+});
