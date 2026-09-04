@@ -15,11 +15,28 @@
  *
  * Sai com código 1 se achar corrupção; particularidade não derruba.
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const diretorio = process.argv[2] ?? 'bruto/txt';
-const ESPERADOS = 73;
+
+/**
+ * Quantos .txt deveriam estar aqui. O Apps Script grava
+ * `_inventario-completo.tsv` na pasta de destino justamente para a
+ * procedência descer junto com o zip — se ele existe, é ele quem manda.
+ * Sem inventário, não há expectativa e o script só relata o que achou.
+ */
+function quantosEsperados() {
+  const doArgumento = Number(process.argv[3]);
+  if (Number.isInteger(doArgumento) && doArgumento > 0) return doArgumento;
+
+  const inventario = join(diretorio, '_inventario-completo.tsv');
+  if (!existsSync(inventario)) return undefined;
+  const linhas = readFileSync(inventario, 'utf8').split('\n').filter((l) => l.trim() !== '');
+  return linhas.length - 1; // menos o cabeçalho
+}
+
+const ESPERADOS = quantosEsperados();
 
 /** Corrupção: o arquivo não representa mais o documento de origem. */
 function corrupcoes(bytes, texto) {
@@ -75,11 +92,13 @@ for (const [p, nomes] of porParticularidade) {
   for (const n of nomes) console.log(`     ${n}`);
 }
 
-if (arquivos.length !== ESPERADOS) {
-  console.log(`\nATENÇÃO: esperados ${ESPERADOS} arquivos, achados ${arquivos.length}.`);
+const faltando = ESPERADOS !== undefined && arquivos.length !== ESPERADOS;
+if (faltando) {
+  console.log(`\nATENÇÃO: esperados ${ESPERADOS} arquivos, achados ${arquivos.length}.`
+    + ' A exportação pode ter parado no limite de tempo do Apps Script — rode a função de novo.');
 }
 console.log(comCorrupcao === 0
   ? '\nNenhuma corrupção. Os bytes representam os documentos de origem.'
   : `\n${comCorrupcao} arquivo(s) corrompido(s) — NÃO importe antes de resolver a via de export.`);
 
-process.exit(comCorrupcao === 0 && arquivos.length === ESPERADOS ? 0 : 1);
+process.exit(comCorrupcao === 0 && !faltando ? 0 : 1);
