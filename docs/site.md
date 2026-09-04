@@ -45,6 +45,37 @@ nada.
 | `site/execucao.ts` | a tela de **execução** |
 | `site/tons.ts` | os tons oferecidos e o passo de meio tom |
 
+## A forma da tela de preparação
+
+O painel do culto é **duas colunas no desktop** (a partir de 1080px): setlist à
+esquerda, música atual à direita, grudada no topo e limitada à viewport — quem
+rola é a prévia, para o título e os passos ficarem sempre à mão enquanto se
+confere a cifra. Abaixo disso as duas empilham, com a setlist primeiro.
+
+Três decisões de cor sustentam isso:
+
+- **A lateral é a única superfície escura do modo claro** (`--rail`). Não é
+  enfeite: é a tela de execução aparecendo dentro da tela de preparação, e é o
+  que faz as duas metades do produto se reconhecerem. No escuro ela clareia em
+  vez de escurecer, senão some no chão.
+- **A pastilha de tom usa o acento, não o laranja da cifra.** Tom como
+  *etiqueta* (linha de lista) é cromo; tom como *escolha sobre a cifra* (o
+  seletor de 16 e a grade da execução) continua no laranja `--cifra`. Dois
+  papéis, duas cores — a distinção tem que sobreviver à distância de um braço.
+- **O lilás é alarme, não decoração.** A faixa do rascunho fica quieta
+  (superfície + borda) enquanto a ordem é a do culto, e só acende quando a
+  setlist foi alterada, que é o que precisa ser notado.
+
+### O que a tela não mostra, de propósito
+
+O modelo visual que originou este layout trazia duração por música e total do
+culto, tema (`Adoração`, `Louvor`), ano, horário, "salvo há 2 min", alça de
+arrastar e foto de perfil. **Nenhum dos sete existe aqui:** os quatro primeiros
+não estão no dado (ver a seção da busca e "Os cultos são dado real"); "salvo"
+seria mentira num servidor só de leitura; alça que não arrasta promete o que os
+links `↑ ↓` fazem; e não há conta de usuário. Tela cheia de palpite é pior que
+tela honesta e mais vazia.
+
 ## Duas experiências, um vocabulário
 
 Preparação e execução usam os mesmos tokens com valores diferentes — não são

@@ -31,6 +31,11 @@ export const CSS_UI = `
     --cifra:#ff6600; --rotulo:#0000ff; --anot:#9900ff; --letra:#1b1b1b;
     --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
     --raio:10px; --esc:1.35;
+    --sombra:0 1px 2px rgba(16,18,29,.05);
+    /* O trilho é a única superfície escura do modo claro — e é de propósito:
+       ele é a tela de execução aparecendo dentro da tela de preparação. */
+    --rail:#141227; --rail-ink:#eceafb; --rail-muted:#8f8ab0;
+    --rail-hover:#231f42; --rail-linha:rgba(255,255,255,.09);
   }
   /* Escolha explícita: a execução abre com \`data-theme=dark\` no <html>. */
   :root[data-theme=dark]{
@@ -39,6 +44,9 @@ export const CSS_UI = `
     --acento:#a78bfa; --acento-forte:#c4b5fd; --acento-fraco:#241b3d;
     --viva:#34d399; --alerta:#fca5a5;
     --cifra:#ff9147; --rotulo:#8fb4ff; --anot:#c9a3ff; --letra:#eceef1;
+    --sombra:0 1px 2px rgba(0,0,0,.4);
+    --rail:#171b21; --rail-ink:#eceef1; --rail-muted:#949ba6;
+    --rail-hover:#1e232a; --rail-linha:rgba(255,255,255,.08);
   }
   @media (prefers-color-scheme:dark){
     :root:not([data-theme=light]){
@@ -47,6 +55,9 @@ export const CSS_UI = `
       --acento:#a78bfa; --acento-forte:#c4b5fd; --acento-fraco:#241b3d;
       --viva:#34d399; --alerta:#fca5a5;
       --cifra:#ff9147; --rotulo:#8fb4ff; --anot:#c9a3ff; --letra:#eceef1;
+      --sombra:0 1px 2px rgba(0,0,0,.4);
+      --rail:#171b21; --rail-ink:#eceef1; --rail-muted:#949ba6;
+      --rail-hover:#1e232a; --rail-linha:rgba(255,255,255,.08);
     }
   }
 
@@ -65,6 +76,9 @@ export const CSS_UI = `
   .lateral{display:none}
   .conteudo{min-width:0;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
   .miolo{max-width:920px;margin:0 auto;padding:16px 16px 48px}
+  /* A tela do culto é de duas colunas no desktop e precisa de mais folga que
+     uma lista de leitura. As demais telas continuam em 920px. */
+  .miolo.largo{max-width:1240px}
 
   /* barra de topo do celular */
   .barra-topo{position:sticky;top:0;z-index:20;display:flex;align-items:center;
@@ -125,10 +139,14 @@ export const CSS_UI = `
       -webkit-overflow-scrolling:touch;padding:2px 0}
   .fila::-webkit-scrollbar{display:none}
 
-  /* pastilha de tom: monoespaçada porque tom é dado, não texto */
+  /* Pastilha de tom: monoespaçada porque tom é dado, não texto.
+     Aqui ela é ETIQUETA — o tom de uma linha de lista — e usa o acento. O
+     laranja \`--cifra\` fica reservado para onde o tom é ESCOLHA sobre a cifra
+     (o seletor de 16 e a grade da execução), para os dois papéis não se
+     confundirem à distância de um braço. */
   .pastilha{flex:0 0 auto;display:inline-flex;align-items:center;
       justify-content:center;min-width:42px;min-height:30px;padding:0 8px;
-      border-radius:8px;background:var(--raised);color:var(--cifra);
+      border-radius:8px;background:var(--acento-fraco);color:var(--acento);
       font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;
       font-size:14px;text-decoration:none}
   .pastilha-forte{background:var(--cifra);color:#fff}
@@ -151,6 +169,21 @@ export const CSS_UI = `
 
   .painel{background:var(--surface);border:1px solid var(--line);
       border-radius:14px;padding:16px}
+
+  /* Cartão: superfície branca com cabeçalho de rótulo. É a unidade de
+     composição da tela do culto. */
+  .cartao{background:var(--surface);border:1px solid var(--line);
+      border-radius:14px;box-shadow:var(--sombra);overflow:hidden}
+  .cartao-topo{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+      padding:14px 16px;border-bottom:1px solid var(--line)}
+  .cartao-topo .quem{flex:1 1 180px;min-width:0}
+  .cartao-topo h2,.cartao-topo h3{font-size:16px;letter-spacing:-.01em}
+  .cartao-topo .rot{display:block;margin-bottom:3px;font-size:11px;
+      font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+      color:var(--muted)}
+  .cartao-topo .sub{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+  .cartao-rodape{padding:11px 16px;border-top:1px solid var(--line);
+      background:var(--ground);color:var(--muted);font-size:12.5px}
   .aviso{color:var(--muted);font-size:13.5px;line-height:1.55}
   .vazio{padding:28px 4px;color:var(--muted);font-size:15px}
 
@@ -160,24 +193,41 @@ export const CSS_UI = `
     .abas,.barra-topo{display:none}
     .conteudo{padding-bottom:0}
     .miolo{padding:32px 40px 64px}
-    .lateral{display:flex;flex-direction:column;gap:4px;position:sticky;top:0;
-        height:100vh;padding:20px 14px;background:var(--surface);
-        border-right:1px solid var(--line)}
-    .lateral .marca{padding:6px 10px 20px;font-weight:700;font-size:16px;
-        letter-spacing:-.015em}
-    .lateral .marca span{display:block;font-weight:500;font-size:11.5px;
-        color:var(--muted);letter-spacing:.05em;text-transform:uppercase;
-        margin-top:3px}
-    .grupo-nav{margin-top:14px;padding:0 10px 6px;font-size:10.5px;font-weight:700;
-        letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
-    .lateral a{display:flex;align-items:center;gap:11px;min-height:40px;
-        padding:0 10px;border-radius:var(--raio);text-decoration:none;
-        color:var(--muted);font-size:14.5px;font-weight:500}
-    .lateral a:hover{background:var(--raised);color:var(--ink)}
-    .lateral a[aria-current=page]{background:var(--acento-fraco);
-        color:var(--acento);font-weight:600}
-    .lateral .rodape-nav{margin-top:auto;padding-top:14px;
-        border-top:1px solid var(--line)}
+    .lateral{display:flex;flex-direction:column;gap:3px;position:sticky;top:0;
+        height:100vh;padding:18px 12px;background:var(--rail);
+        color:var(--rail-ink);border-right:0}
+    .lateral .marca{display:flex;align-items:center;gap:11px;
+        padding:6px 8px 22px;font-weight:700;font-size:17px;
+        letter-spacing:-.02em}
+    .lateral .marca .selo{flex:0 0 auto;width:34px;height:34px;display:grid;
+        place-items:center;border-radius:10px;background:var(--acento);
+        color:#fff}
+    .lateral .marca .selo .icone{width:19px;height:19px}
+    .lateral .marca .nome{min-width:0}
+    .lateral .marca .nome span{display:block;font-weight:500;font-size:10.5px;
+        color:var(--rail-muted);letter-spacing:.08em;text-transform:uppercase;
+        margin-top:2px}
+    .grupo-nav{margin-top:16px;padding:0 10px 7px;font-size:10px;font-weight:700;
+        letter-spacing:.13em;text-transform:uppercase;color:var(--rail-muted)}
+    .lateral a{display:flex;align-items:center;gap:11px;min-height:42px;
+        padding:0 11px;border-radius:var(--raio);text-decoration:none;
+        color:var(--rail-muted);font-size:14.5px;font-weight:500}
+    .lateral a:hover{background:var(--rail-hover);color:var(--rail-ink)}
+    /* Pílula cheia no destino atual: a lateral é escura, então o acento
+       preenche em vez de tingir — tinta fraca sobre fundo escuro some. */
+    .lateral a[aria-current=page]{background:var(--acento);color:#fff;
+        font-weight:600}
+    .lateral :focus-visible{outline-color:var(--rail-ink)}
+    /* No escuro o acento clareia (\`#a78bfa\`), e branco sobre ele não se lê —
+       mesma correção que o \`.btn-forte\` já faz. */
+    :root[data-theme=dark] .lateral a[aria-current=page],
+    :root[data-theme=dark] .lateral .marca .selo{color:#16181d}
+    @media (prefers-color-scheme:dark){
+      :root:not([data-theme=light]) .lateral a[aria-current=page],
+      :root:not([data-theme=light]) .lateral .marca .selo{color:#16181d}
+    }
+    .lateral .rodape-nav{margin-top:auto;padding-top:12px;
+        border-top:1px solid var(--rail-linha)}
   }
 }
 @media print{
@@ -271,7 +321,8 @@ function lateral(ativo: string): string {
   const rodape = NAV_RODAPE.map((i) => itemLateral(i, ativo)).join('');
   return (
     '<nav class=lateral aria-label="Navegação principal">' +
-    '<div class=marca>Cifras<span>Painel de operação</span></div>' +
+    `<div class=marca><span class=selo>${icone('musicas')}</span>` +
+    '<span class=nome>Cifras<span>Painel de operação</span></span></div>' +
     grupos +
     `<div class=rodape-nav>${rodape}</div></nav>`
   );
@@ -341,6 +392,8 @@ export function paginaPainel(opcoes: {
   css: string;
   miolo: string;
   scripts?: string;
+  /** Duas colunas no desktop — hoje só a tela do culto. */
+  largo?: boolean;
 }): string {
   return envelope({
     titulo: opcoes.titulo,
@@ -351,7 +404,7 @@ export function paginaPainel(opcoes: {
       lateral(opcoes.ativo) +
       '<div class=conteudo>' +
       barraTopo() +
-      `<main class=miolo>${opcoes.miolo}</main>` +
+      `<main class="miolo${opcoes.largo ? ' largo' : ''}">${opcoes.miolo}</main>` +
       '</div></div>' +
       abas(opcoes.ativo),
   });

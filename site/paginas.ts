@@ -30,12 +30,25 @@ import { CSS_UI, CSS_CIFRA, paginaPainel, envelope, icone } from './ui.ts';
 const CSS_PREPARO = `
 @media screen{
   /* ------------------------------------------------ cabeçalho do culto */
-  .culto-topo{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px;
-      padding-bottom:18px;border-bottom:1px solid var(--line)}
+  .culto-topo{display:flex;flex-wrap:wrap;align-items:center;gap:14px;
+      padding-bottom:16px;border-bottom:1px solid var(--line)}
   .culto-topo .quem{flex:1 1 240px;min-width:0}
-  .culto-topo h1{font-size:26px;letter-spacing:-.02em}
-  .culto-topo .sub{margin:5px 0 0;color:var(--muted);font-size:14px}
+  .culto-topo h1{font-size:24px;letter-spacing:-.02em}
+  .culto-topo .sub{margin:5px 0 0;color:var(--muted);font-size:13.5px}
   .culto-topo .acoes{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+  /* Setlist e música atual lado a lado: o mockup põe as duas num olhar só, e
+     é o que a preparação pede — mexer na ordem sem perder a cifra de vista.
+     Abaixo de 1080px voltam a empilhar, com a setlist primeiro. */
+  .culto-grade{display:grid;gap:16px;margin-top:18px;align-items:start}
+  @media (min-width:1080px){
+    .culto-grade{grid-template-columns:minmax(0,1fr) minmax(0,1.08fr)}
+    /* Grudado no topo e limitado à viewport: quem rola é a prévia, para o
+       título e os passos ficarem sempre à mão enquanto se confere a cifra. */
+    .culto-grade .atual{position:sticky;top:24px;display:flex;
+        flex-direction:column;max-height:calc(100vh - 48px)}
+    .culto-grade .atual .previa{flex:1 1 auto;min-height:0}
+  }
   /* No celular a ação principal do culto ocupa a largura: é o alvo que se
      acerta com o polegar, de pé. */
   @media (max-width:560px){
@@ -43,19 +56,32 @@ const CSS_PREPARO = `
     .culto-topo .acoes .btn-grande{flex:1 1 auto}
   }
 
+  /* Estado quieto quando a ordem é a do culto; o lilás fica reservado para a
+     setlist alterada, que é o que precisa ser notado. */
   .rascunho{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
-      margin-top:14px;padding:11px 14px;border-radius:var(--raio);
-      background:var(--acento-fraco);color:var(--ink);font-size:13.5px}
-  .rascunho b{color:var(--acento)}
+      margin-top:14px;padding:10px 14px;border-radius:var(--raio);
+      background:var(--surface);border:1px solid var(--line);
+      color:var(--muted);font-size:13.5px}
+  .rascunho b{color:var(--ink)}
+  .rascunho[data-estado=alterada]{background:var(--acento-fraco);
+      border-color:transparent;color:var(--ink)}
+  .rascunho[data-estado=alterada] b{color:var(--acento)}
   .rascunho .btn{min-height:36px;padding:0 12px;font-size:13px}
 
   /* ------------------------------------------------ setlist */
   .setlist{list-style:none;margin:0;padding:0}
-  .setlist li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;
-      grid-template-areas:"num nome tom" ". acoes acoes";
-      align-items:center;gap:4px 12px;padding:12px 8px;
-      border-bottom:1px solid var(--line);border-radius:var(--raio)}
-  .setlist li[data-atual=true]{background:var(--acento-fraco)}
+  .setlist li{display:grid;
+      grid-template-columns:auto auto minmax(0,1fr) auto;
+      grid-template-areas:"marca num nome tom" ". . acoes acoes";
+      align-items:center;gap:4px 10px;padding:12px 14px;
+      border-bottom:1px solid var(--line)}
+  .setlist li:last-child{border-bottom:0}
+  /* A música atual ganha barra de acento na borda viva do cartão — o realce
+     tem que sobreviver à lista sem margem lateral. */
+  .setlist li[data-atual=true]{background:var(--acento-fraco);
+      box-shadow:inset 3px 0 0 var(--acento)}
+  .setlist .marca{grid-area:marca;width:14px;text-align:center;
+      color:var(--acento);font-size:11px;line-height:1}
   .setlist .num{grid-area:num;font-family:ui-monospace,Menlo,monospace;
       font-size:13px;font-weight:700;color:var(--muted);min-width:22px}
   .setlist li[data-atual=true] .num{color:var(--acento)}
@@ -80,16 +106,23 @@ const CSS_PREPARO = `
   .setlist .acoes .remover:hover{color:var(--alerta)}
   .setlist .acoes span{opacity:.25}
   @media (min-width:700px){
-    .setlist li{grid-template-columns:auto minmax(0,1fr) auto auto;
-        grid-template-areas:"num nome tom acoes"}
-    .setlist .acoes{margin-left:8px}
+    .setlist li{grid-template-columns:auto auto minmax(0,1fr) auto auto;
+        grid-template-areas:"marca num nome tom acoes"}
+    /* Tom e ações são grupos diferentes: um mexe na música, o outro na ordem.
+       A separação é o que impede errar o alvo com a mão apressada. */
+    .setlist .acoes{margin-left:14px;padding-left:12px;
+        border-left:1px solid var(--line)}
+    .setlist li[data-atual=true] .acoes{border-left-color:transparent}
   }
 
-  .adicionar{margin-top:14px}
-  .adicionar summary{display:inline-flex;list-style:none;cursor:pointer}
+  .adicionar{margin:0}
+  .adicionar summary{display:inline-flex;list-style:none;cursor:pointer;
+      min-height:38px;padding:0 13px;font-size:13.5px}
   .adicionar summary::-webkit-details-marker{display:none}
   .adicionar .caixa{margin-top:12px;padding:14px;border:1px solid var(--line);
       border-radius:14px;background:var(--surface)}
+  /* Dentro do cartão a caixa de adicionar é rodapé, não cartão aninhado. */
+  .cartao-rodape .adicionar .caixa{border:0;padding:0;background:none}
   .escolher{list-style:none;margin:12px 0 0;padding:0;max-height:320px;
       overflow-y:auto}
   .escolher a{display:flex;align-items:center;gap:12px;padding:10px 8px;
@@ -100,13 +133,10 @@ const CSS_PREPARO = `
   .escolher .nome span{display:block;color:var(--muted);font-size:12.5px}
 
   /* ------------------------------------------------ música atual */
-  .atual{margin-top:10px;border:1px solid var(--line);border-radius:14px;
-      background:var(--surface);overflow:hidden}
-  .atual-topo{display:flex;flex-wrap:wrap;align-items:center;gap:12px;
-      padding:16px;border-bottom:1px solid var(--line)}
-  .atual-topo .quem{flex:1 1 200px;min-width:0}
-  .atual-topo h3{font-size:18px}
-  .atual-topo .sub{margin:3px 0 0;color:var(--muted);font-size:13px}
+  .atual .cartao-topo h3{font-size:21px;letter-spacing:-.015em}
+  .atual .etiquetas{display:flex;flex-wrap:wrap;align-items:center;gap:7px;
+      margin-top:7px}
+  .atual .etiquetas .chip{min-height:28px;padding:0 11px;font-size:12.5px}
   /* A prévia é conferência, não leitura de palco: escala própria, menor que a
      da execução, para caber mais música na tela. O --esc local vence o que o
      controle de fonte põe no <html> porque está mais perto do elemento. */
@@ -119,11 +149,15 @@ const CSS_PREPARO = `
   .passos .desligado{opacity:.35;pointer-events:none}
 
   /* ------------------------------------------------ biblioteca */
-  .lista{list-style:none;margin:14px 0 0;padding:0}
+  /* Campo, filtros e lista vivem no mesmo cartão: procurar é uma ação só. */
+  .busca-topo{display:grid;gap:12px;padding:16px;
+      border-bottom:1px solid var(--line)}
+  .lista{list-style:none;margin:0;padding:0}
   .lista li{border-bottom:1px solid var(--line)}
+  .lista li:last-child{border-bottom:0}
   .lista a{display:flex;align-items:center;gap:12px;min-height:64px;
-      padding:10px 6px;text-decoration:none;border-radius:var(--raio)}
-  .lista a:hover{background:var(--surface)}
+      padding:10px 16px;text-decoration:none}
+  .lista a:hover{background:var(--raised)}
   .lista .nome{flex:1 1 auto;min-width:0}
   .lista .nome b{display:block;font-size:16px;font-weight:600;line-height:1.25}
   .lista .nome span{display:block;margin-top:2px;color:var(--muted);font-size:13px}
@@ -293,6 +327,7 @@ export function paginaCulto(
       const papel = e.musica.momento ? `<span class=papel>${esc(e.musica.momento)}</span> · ` : '';
       return (
         `<li data-atual="${eAtual}">` +
+        `<span class=marca aria-hidden="true">${eAtual ? '&#9654;' : ''}</span>` +
         `<span class=num>${String(i + 1).padStart(2, '0')}</span>` +
         `<a class=nome href="${esc(linkCulto(culto.nome, entradas, i))}">` +
         `<b>${esc(e.musica.titulo)}</b>` +
@@ -340,12 +375,15 @@ export function paginaCulto(
         '</div></details>';
 
   const blocoAtual = atualEntrada
-    ? '<div class=atual>' +
-      '<div class=atual-topo><div class=quem>' +
+    ? '<div class="cartao atual">' +
+      '<div class=cartao-topo><div class=quem>' +
+      '<span class=rot>Música atual</span>' +
       `<h3>${esc(atualEntrada.musica.titulo)}</h3>` +
-      `<p class=sub>${esc(atualEntrada.musica.artista)} &middot; Tom ${esc(atualEntrada.tom)}` +
-      (atualEntrada.musica.momento ? ` &middot; ${esc(atualEntrada.musica.momento)}` : '') +
-      '</p></div>' +
+      '<div class=etiquetas>' +
+      `<span class=chip>${esc(atualEntrada.musica.artista)}</span>` +
+      `<span class=pastilha>${esc(atualEntrada.tom)}</span>` +
+      (atualEntrada.musica.momento ? `<span class=chip>${esc(atualEntrada.musica.momento)}</span>` : '') +
+      '</div></div>' +
       `<a class="btn btn-forte" href="${esc(linkExecucao(culto.nome, entradas, atual))}">Executar daqui</a>` +
       `<a class=btn href="/musica/${esc(atualEntrada.slug)}?tom=${encodeURIComponent(atualEntrada.tom)}">Abrir cifra</a>` +
       '</div>' +
@@ -362,27 +400,39 @@ export function paginaCulto(
   const miolo =
     '<header class=culto-topo><div class=quem>' +
     `<h1>${esc(culto.rotulo)}</h1>` +
-    `<p class=sub>${esc([culto.periodo, `${entradas.length} ${entradas.length === 1 ? 'música' : 'músicas'}`].filter(Boolean).join(' · '))}</p>` +
+    // O período é o que a convenção do nome do arquivo carrega. Não há ano,
+    // horário nem duração no dado — e a tela não os inventa (docs/site.md).
+    (culto.periodo ? `<p class=sub>${esc(culto.periodo)}</p>` : '') +
     '</div><div class=acoes>' +
     '<span class=status id=status data-estado=preparando>Preparando</span>' +
     `<a class="btn btn-forte btn-grande" id=iniciar href="${esc(linkExecucao(culto.nome, entradas, atual))}">Iniciar culto</a>` +
     '<button class="btn btn-fantasma" id=encerrar hidden type=button>Encerrar culto</button>' +
     '</div></header>' +
     (alterada
-      ? '<p class=rascunho><b>Setlist alterada</b> — vale neste aparelho e no link. ' +
+      ? '<p class=rascunho data-estado=alterada><b>Setlist alterada</b> — vale neste aparelho e no link. ' +
         `<a class=btn href="${esc(`/culto/${encodeURIComponent(culto.nome)}?atual=${atual}&limpar=1`)}">Restaurar ordem do culto</a>` +
         '<button class=btn type=button id=copiar>Copiar link para o celular</button></p>'
-      : '<p class=rascunho><b>Ordem do culto</b> — como foi tocado. ' +
+      : '<p class=rascunho data-estado=canonica><b>Ordem do culto</b> — como foi tocado. ' +
         '<button class=btn type=button id=copiar>Copiar link para o celular</button></p>') +
-    `<h2 class=secao-tit>Setlist do culto</h2><ol class=setlist>${itens}</ol>${adicionar}` +
-    '<h2 class=secao-tit>Música atual</h2>' +
-    blocoAtual;
+    '<div class=culto-grade>' +
+    '<section class="cartao setlist-cartao" aria-labelledby=tit-setlist>' +
+    '<div class=cartao-topo><div class=quem>' +
+    '<h2 id=tit-setlist>Setlist do culto</h2>' +
+    `<p class=sub>${entradas.length} ${entradas.length === 1 ? 'música' : 'músicas'} · ` +
+    `${alterada ? 'ordem alterada neste aparelho' : 'ordem e tom em que foi tocado'}</p>` +
+    '</div></div>' +
+    `<ol class=setlist>${itens}</ol>` +
+    `<div class=cartao-rodape>${adicionar}</div>` +
+    '</section>' +
+    blocoAtual +
+    '</div>';
 
   return paginaPainel({
     titulo: `${culto.rotulo} — Painel`,
     ativo: '/',
     css: CSS_PAINEL,
     miolo,
+    largo: true,
     scripts: SCRIPT_FILTRO + scriptCulto(culto.nome, canonica),
   });
 }
@@ -495,11 +545,14 @@ export function paginaBiblioteca(rep: Repertorio, opcoes: { foco: boolean }): st
 
   const miolo =
     `<h1 class=secao-tit>${opcoes.foco ? 'Buscar' : 'Músicas'}<em>${rep.todas.length} no repertório</em></h1>` +
+    '<div class=cartao><div class=busca-topo>' +
     `<input class=campo type=search data-filtro=lista autocomplete=off${opcoes.foco ? ' autofocus' : ''} ` +
     'placeholder="Buscar música ou artista" aria-label="Buscar música ou artista">' +
-    `<nav class="fila" data-chips=lista aria-label="Filtrar por tom" style="margin-top:12px">${chips}</nav>` +
+    `<nav class="fila" data-chips=lista aria-label="Filtrar por tom">${chips}</nav>` +
+    '</div>' +
     `<ul class=lista id=lista>${itens}</ul>` +
-    '<p class=vazio data-vazio=lista hidden>Nada com esse nome nesse filtro.</p>' +
+    '<p class=vazio data-vazio=lista hidden style="padding:28px 16px">Nada com esse nome nesse filtro.</p>' +
+    '</div>' +
     `<p class=contagem><span data-conta=lista>${rep.todas.length}</span> de ${rep.todas.length} músicas. ` +
     'O filtro é por tom de origem — o repertório ainda não tem o campo de tema.</p>';
 
