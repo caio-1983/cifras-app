@@ -1,7 +1,36 @@
 # Sistema de Cifras
 
-Sistema para o diretor musical e a banda da igreja: guarda cada música **uma vez**
-e transpõe para qualquer tom na hora de exibir.
+Sistema para o diretor musical e a banda: guarda cada música **uma vez** e
+transpõe para qualquer tom na hora de exibir.
+
+**Desde 2026-09-04 é produto, não ferramenta interna** — será comercializado
+para outras igrejas. O escopo e a ordem dos cinco sprints estão em
+`docs/rumo.md`, que é a fonte da verdade sobre rumo; a lista de Fases 0–5 do
+`docs/arquitetura.md` é histórica. **Leia `docs/rumo.md` antes de propor
+qualquer coisa nova** — ele registra também o que está fora de escopo e por quê.
+
+Resumo da sequência: **1** importação das 437 · **2** biblioteca utilizável
+(critério: a banda de origem para de usar Google Docs) · **3** Sala do Culto por
+link, sem cadastro · **4** isolamento por igreja · **5** contas e cobrança, um
+plano e um preço.
+
+## Três decisões que valem desde já
+
+1. **Offline primeiro.** A cifra está no aparelho antes do culto. Cair a conexão
+   pode custar o "o tom mudou", nunca a música.
+2. **Conteúdo pertence à igreja, desde o modelo.** Escopo de igreja no modelo de
+   dados desde o começo; nada de conteúdo cruzando entre igrejas.
+3. **Arranjo separado de letra.** Arranjo (título, artista, tom, BPM, temas,
+   mapa de seções, progressão) e letra são coisas distintas no modelo — é o que
+   permite compartilhar arranjo sem redistribuir obra de terceiro.
+
+## Limite jurídico — não reintroduzir por engano
+
+Não existe licença coletiva no Brasil para reproduzir letra em software; CCLI
+licencia a igreja, não um terceiro. **Não proponha nem implemente** biblioteca
+comum entre igrejas, cifra colaborativa, catálogo público, nem importação de
+conteúdo de sites de cifra. Se um requisito parecer exigir isso, **pare e
+pergunte**. Detalhe em `docs/rumo.md`.
 
 ## Onde o projeto está
 
@@ -15,14 +44,21 @@ e transpõe para qualquer tom na hora de exibir.
   **modo execução** escuro para o celular no palco. O conceito é preparar no
   computador e executar pelo celular; o que atravessa é o link, porque o servidor
   é só leitura e sem estado (`docs/site.md`).
-- **Próximo passo grande: Fase 1, a importação das 437 do Drive.** Tem decisão de
-  formato pendente (`docs/achados-importacao.md`) — o inventário do Drive já
-  levantado está em `bruto/`.
+- **Camada de formato pronta** — as três mudanças estruturais dos achados de
+  importação estão implementadas e testadas: posicional é tipo comum, subtítulo
+  tem vocabulário aberto com mapa de sinônimos (`src/sinonimosSubtitulo.ts`),
+  anotação de execução usa `{...}`, seção-referência é materializada
+  (`src/materializacaoSecoes.ts`), e `src/importador.ts` orquestra tudo. Três
+  músicas reais já entraram por esse caminho.
+- **Sprint 1 em curso: a importação em massa das 437 do Drive.** O que falta é
+  volume e as pontas registradas em `docs/plano-camada-formato.md`: extração de
+  texto de `.docx`, split de medley, e a separação arranjo/letra da decisão nova.
+  O inventário do Drive está em `bruto/`.
 
 A montagem de culto na tela existe, mas **monta sobre culto que já existe** e o
 resultado é rascunho no aparelho e no link. Criar culto novo, salvar setlist,
-culto ao vivo compartilhado entre celulares, edição, upload, banco e login
-continuam fora — cada um é fase própria, e a importação vem antes.
+Sala do Culto compartilhada entre celulares, edição, upload e login continuam
+fora — são os sprints 2 a 5, e a importação vem antes.
 
 ## Mapa
 
@@ -42,7 +78,9 @@ continuam fora — cada um é fase própria, e a importação vem antes.
 
 | Assunto | Onde |
 |---|---|
+| **Rumo, sprints, fora de escopo, limite jurídico** | `docs/rumo.md` |
 | Formato `.cifra` — leia antes de mexer no parser | `docs/formato-cifra.md` |
+| Estado da camada de formato/importador, item por item | `docs/plano-camada-formato.md` |
 | Padrão visual (cores, fonte, estrutura) | `docs/padrao-visual.md` |
 | Arquitetura e fases | `docs/arquitetura.md` |
 | Publicar no Google Docs | `docs/achados-google-docs.md` |
@@ -52,6 +90,10 @@ continuam fora — cada um é fase própria, e a importação vem antes.
 ## Regras do projeto
 
 - **Sem banco de dados.** A fonte da verdade são os arquivos `.cifra` em `musicas/`.
+  Continua valendo nos sprints 1 e 2. Os sprints 4 e 5 (isolamento por igreja,
+  contas) põem essa regra em xeque — o escopo de igreja pode viver como diretório
+  por igreja, mas a decisão é do usuário e não foi tomada. Não introduza banco
+  sem perguntar.
 - **Sem dependência de biblioteca de ChordPro.** A notação aqui é brasileira
   (`F7+`, `Eb4`, `G9`) e as libs prontas a corrompem.
 - Português nos nomes de domínio (musica, tom, refrao, compasso) — é o vocabulário
