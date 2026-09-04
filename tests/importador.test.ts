@@ -277,3 +277,24 @@ test('importarCifraCrua: sufixo legítimo do acervo continua passando (não é o
   const cifra = importarCifraCrua(cru, 'x.cifra');
   assert.ok(cifra.includes('| Ab7M | F#m7(5-) | Gm7(11) | C/E | Dm7/A |'), cifra);
 });
+
+test('importarCifraCrua: "2x" e "pausa" viram anotação {…} no lugar de derrubar o arquivo (61 arquivos do acervo)', () => {
+  const cru = ['MEU ABRIGO', 'Tom: A', '', '[Interlúdio] | A | A | D | D | 2x', '| pausa | pausa | Em | % |'].join('\n');
+  const cifra = importarCifraCrua(cru, 'meu-abrigo.cifra');
+  assert.ok(cifra.includes('[Interlúdio] | A | A | D | D | {2x}'), cifra);
+  assert.ok(cifra.includes('| {pausa} | {pausa} | Em | % |'), cifra);
+});
+
+test('importarCifraCrua: linha posicional com "2x" não é anotada — falha alto e vai para curadoria', () => {
+  // As chaves acrescentam dois caracteres. Numa linha `~` isso empurraria
+  // todos os itens seguintes para fora da sílaba, então a anotação
+  // automática não roda aqui. Consequência assumida: um `2x` dentro de
+  // linha posicional derruba o arquivo, em vez de ser corrigido no chute.
+  //
+  // Refinamento possível, deixado de fora por falta de evidência: se o
+  // token for o ÚLTIMO da linha, envolvê-lo não moveria nada. Não há
+  // nenhum caso assim nos 421 — construir a exceção agora seria desenhar
+  // para um arquivo que não existe.
+  const cru = ['X', 'Tom: Am', '', '~Am        Em7       F7+    2x', 'Ele é o Grande Eu Sou'].join('\n');
+  assert.throws(() => importarCifraCrua(cru, 'x.cifra'), /nota inválida: "2x"/);
+});

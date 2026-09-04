@@ -3,6 +3,7 @@ import { expandirTabs, normalizarEspacamentoCompasso } from './normalizacao.ts';
 import { normalizarSubtitulo } from './sinonimosSubtitulo.ts';
 import { marcarLinhasPosicionaisCruas } from './deteccaoPosicionalCrua.ts';
 import { materializarSecoesReferenciadas } from './materializacaoSecoes.ts';
+import { marcarAnotacoesDeExecucao } from './anotacaoExecucao.ts';
 import { parseMusica } from './index.ts';
 import type { Musica } from './tipos.ts';
 
@@ -79,13 +80,41 @@ function colapsarLinhasEmBrancoConsecutivas(linhas: string[]): string[] {
  * de EU VOU CONSTRUIR), preservando o rótulo intacto.
  */
 function normalizarEspacamentoSeForCifra(linha: string): string {
+  return sobreORegiaoDeCifra(linha, normalizarEspacamentoCompasso);
+}
+
+/**
+ * Marca `2x`/`pausa` como anotação `{...}` (ver `anotacaoExecucao.ts`), com
+ * a mesma restrição do reespaçamento: **nunca em linha posicional**. As
+ * chaves acrescentam dois caracteres, e numa linha `~` isso empurraria todos
+ * os itens seguintes para fora da sílaba.
+ */
+function marcarAnotacoesSeForCifra(linha: string): string {
+  return sobreORegiaoDeCifra(linha, marcarAnotacoesDeExecucao);
+}
+
+/**
+ * Aplica `transformar` só na parte da linha que é cifra, preservando o
+ * rótulo de subtítulo quando houver — e devolve a linha intacta quando ela
+ * não for cifra (letra, separador) ou for posicional.
+ *
+ * **Nunca em linha posicional.** Numa linha `~` a coluna de cada item É o
+ * conteúdo — o acorde fica sobre a sílaba de baixo, e qualquer mudança de
+ * largura move o acorde de sílaba. Por isso as duas transformações rodam
+ * depois de `marcarLinhasPosicionaisCruas`: é o único momento em que se
+ * sabe quem é posicional.
+ *
+ * Em linha de compasso o relayout preserva largura, não coluna, então
+ * mexer no espaçamento não tem efeito colateral.
+ */
+function sobreORegiaoDeCifra(linha: string, transformar: (trecho: string) => string): string {
   const trimada = linha.trim();
   if (trimada.startsWith('~')) return linha;
-  if (trimada.startsWith('|')) return normalizarEspacamentoCompasso(linha);
+  if (trimada.startsWith('|')) return transformar(linha);
 
   const subtituloComCifra = /^(\s*\[[^\]]*\]\s*)(.*)$/.exec(linha);
   if (subtituloComCifra && subtituloComCifra[2]!.includes('|')) {
-    return subtituloComCifra[1]! + normalizarEspacamentoCompasso(subtituloComCifra[2]!);
+    return subtituloComCifra[1]! + transformar(subtituloComCifra[2]!);
   }
   return linha;
 }
@@ -153,7 +182,10 @@ function recusarAcordesGrudados(musica: Musica, nomeArquivo?: string): void {
  *    achado item 9) só em linha de compasso e na cifra que acompanha um
  *    subtítulo — nunca em linha posicional, onde a coluna é o conteúdo; por
  *    isso depois do passo 6, o único momento em que se sabe quem é posicional
- * 8. colapsa duas ou mais linhas em branco seguidas em uma só
+ * 8. marca `2x`/`pausa` como anotação `{...}` (`marcarAnotacoesDeExecucao`),
+ *    com a mesma restrição do passo 7 — nunca em linha posicional, porque as
+ *    chaves mudam a largura e moveriam o acorde de sílaba
+ * 9. colapsa duas ou mais linhas em branco seguidas em uma só
  *    (`colapsarLinhasEmBrancoConsecutivas`) — por último, depois que
  *    materialização já inseriu os separadores que precisava
  *
@@ -188,7 +220,8 @@ export function importarCifraCrua(textoCru: string, nomeArquivo?: string): strin
   const materializado = materializarSecoesReferenciadas(comSubtitulos);
   const marcado = marcarLinhasPosicionaisCruas(materializado);
   const espacado = marcado.map(normalizarEspacamentoSeForCifra);
-  const corpoFinal = colapsarLinhasEmBrancoConsecutivas(espacado);
+  const anotado = espacado.map(marcarAnotacoesSeForCifra);
+  const corpoFinal = colapsarLinhasEmBrancoConsecutivas(anotado);
 
   const texto = [...cabecalho, '---', ...corpoFinal].join('\n') + '\n';
   recusarAcordesGrudados(parseMusica(texto, nomeArquivo), nomeArquivo);
