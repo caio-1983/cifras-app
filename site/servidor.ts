@@ -75,6 +75,12 @@ export interface Config {
   porta: number;
   host: string;
   repertorio: string;
+  /**
+   * Diretório dos `.cifra`: o acervo, fonte da verdade das músicas.
+   * Opcional de propósito — teste que monta `Config` à mão fica com a
+   * fixture dele e só com ela, sem as 341 do acervo por baixo.
+   */
+  acervo?: string;
 }
 
 export function configDoAmbiente(env: NodeJS.ProcessEnv = process.env): Config {
@@ -83,13 +89,14 @@ export function configDoAmbiente(env: NodeJS.ProcessEnv = process.env): Config {
     // 127.0.0.1: só o nginx alcança. Ver o comentário de topo.
     host: env.CIFRAS_HOST ?? '127.0.0.1',
     repertorio: env.CIFRAS_REPERTORIO ?? fileURLToPath(new URL('dados/repertorio.json', RAIZ)),
+    acervo: env.CIFRAS_ACERVO ?? fileURLToPath(new URL('musicas/', RAIZ)),
   };
 }
 
 const ROBOTS = 'User-agent: *\nDisallow: /\n';
 
 export function criarServidor(config: Config) {
-  const rep = carregarRepertorio(config.repertorio);
+  const rep = carregarRepertorio(config.repertorio, config.acervo);
   const app = Fastify({ logger: { level: process.env.CIFRAS_LOG ?? 'info' } });
 
   // noindex também no cabeçalho: robô que ignora a meta tag costuma respeitar

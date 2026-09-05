@@ -89,3 +89,19 @@ test('HTML: música adversarial bate com a fixture', () => {
     `<body>${blocos}</body></html>`;
   assert.equal(saida, ler('html/adversarial.html'));
 });
+
+test('emissor: música sem artista sai sem a linha de artista, em vez de ser recusada', () => {
+  // O acervo tem 90 músicas cujo documento não registra autor. Exigir o
+  // campo obrigaria a inventar um nome ou a esconder um quarto da
+  // biblioteca; as duas coisas são piores que uma linha a menos.
+  const sem = { titulo: 'X', tom: 'C', corpo: [['cif', '| C | G |']] };
+  const saida = html.escrever(sem as never, 'C', false, { momento: false });
+  assert.ok(saida.includes('X'));
+  assert.ok(!saida.includes('<p><b><span class=h></span></b></p>'), saida);
+});
+
+test('emissor: com artista, nada muda — a linha continua exatamente onde estava', () => {
+  const com = { titulo: 'X', artista: 'Fulano', tom: 'C', corpo: [['cif', '| C | G |']] };
+  const saida = html.escrever(com as never, 'C', false, { momento: false });
+  assert.ok(saida.includes('<p><b><span class=h>Fulano</span></b></p>'), saida);
+});

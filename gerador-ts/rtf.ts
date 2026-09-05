@@ -82,7 +82,7 @@ export function escrever(m: MusicaDados, tomDestino: string, quebraAntes = false
     quebra = false;
   }
   out.push(par(esc(m.titulo), ESCURO, 15, true, quebra));
-  out.push(par(esc(m.artista), ESCURO, 15, true));
+  if (m.artista) out.push(par(esc(m.artista), ESCURO, 15, true));
   out.push(par(esc(`Tom: ${tomDestino}`), ESCURO, 12, true));
   out.push(par(''));
 

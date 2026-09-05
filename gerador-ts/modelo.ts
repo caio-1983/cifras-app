@@ -16,7 +16,11 @@ const RE_TOM = /^[A-G](#{1,2}|b{1,2})?/;
  * resultado observável, portar dead code não teria sentido).
  */
 export function validar(m: MusicaDados): MusicaDados {
-  for (const campo of ['titulo', 'artista', 'tom'] as const) {
+  // `artista` NÃO entra aqui: 90 das 341 músicas do acervo não registram
+  // autor no documento de origem. Exigir o campo obrigaria a inventar um
+  // nome ou a esconder um quarto da biblioteca. Sem artista, o emissor
+  // simplesmente não escreve a linha. Paridade em `gerador/modelo.py`.
+  for (const campo of ['titulo', 'tom'] as const) {
     if (!m[campo]) {
       throw new Error(`música sem ${campo}: ${JSON.stringify(m.titulo ?? '?')}`);
     }

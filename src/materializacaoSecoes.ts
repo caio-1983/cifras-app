@@ -75,7 +75,20 @@ export function materializarSecoesReferenciadas(linhas: string[]): string[] {
   const fimDoBloco = (m: number): number => (m + 1 < marcadores.length ? marcadores[m + 1]!.indice : linhas.length);
   const corpoDoBloco = (m: number): string[] => linhas.slice(marcadores[m]!.indice + 1, fimDoBloco(m));
   const semCorpoAbaixo = (m: number): boolean => corpoDoBloco(m).every((l) => l.trim() === '');
-  const ehVazio = (m: number): boolean => esperaCorpoAbaixo(marcadores[m]!.rotulo) && semCorpoAbaixo(m);
+  /**
+   * Candidato a materializar: nada abaixo até o próximo marcador, e o
+   * rótulo ou espera corpo (`[Verso 2] | A | % |` tem o acorde e falta a
+   * letra) ou está NU — sem nem cifra na própria linha.
+   *
+   * O `|| !temCifraPropria` é o que faltava: sem ele, `[Intro]` nu
+   * repetindo um `[Intro]` que já apareceu com cifra não era materializado,
+   * a seção chegava vazia ao emissor e ele recusava a música inteira (7
+   * arquivos do acervo). A exceção dos rótulos instrumentais existe para
+   * NÃO FALHAR quando não há ocorrência anterior para copiar — e é lá
+   * embaixo que ela age agora, não aqui.
+   */
+  const ehVazio = (m: number): boolean =>
+    semCorpoAbaixo(m) && (esperaCorpoAbaixo(marcadores[m]!.rotulo) || !marcadores[m]!.temCifraPropria);
 
   /**
    * Roteiro de execução: dois ou mais marcadores seguidos, cada um com a
@@ -89,7 +102,21 @@ export function materializarSecoesReferenciadas(linhas: string[]): string[] {
     return parteDeRoteiro(m) && (parteDeRoteiro(m - 1) || parteDeRoteiro(m + 1));
   };
 
+  /** O que vem depois do `]` na linha do marcador — a cifra de lembrete. */
+  const conteudoInline = (m: number): string =>
+    linhas[marcadores[m]!.indice]!.trim().slice(marcadores[m]!.rotulo.length).trim();
+
+  /** O marcador anterior da mesma seção que traz a cifra na própria linha. */
+  const marcadorInlineAnterior = (m: number): number => {
+    for (let anterior = m - 1; anterior >= 0; anterior--) {
+      const cand = marcadores[anterior]!;
+      if (mesmaSecao(cand.rotulo, marcadores[m]!.rotulo) && cand.temCifraPropria) return anterior;
+    }
+    return -1;
+  };
+
   const insercoes: { apos: number; conteudo: string[] }[] = [];
+  const substituicoes: { linha: number; texto: string }[] = [];
 
   for (let m = 0; m < marcadores.length; m++) {
     if (!ehVazio(m)) continue;
@@ -110,6 +137,25 @@ export function materializarSecoesReferenciadas(linhas: string[]): string[] {
       // Só o marcador NU, que não traz nada, é referência de verdade — e aí
       // falhar alto é o comportamento certo (precedente: TU ÉS BOM).
       if (marcadores[m]!.temCifraPropria) continue;
+
+      // Seção cujo conteúdo mora na LINHA DO MARCADOR, não abaixo dele —
+      // é a forma dos instrumentais (`[Intro] | A | E |`). Quando ela
+      // reaparece nua, repetir significa reproduzir aquela linha; inserir
+      // um corpo abaixo não serviria, porque corpo nunca houve.
+      const origemInline = marcadorInlineAnterior(m);
+      if (origemInline !== -1) {
+        substituicoes.push({
+          linha: marcadores[m]!.indice,
+          texto: `${marcadores[m]!.rotulo} ${conteudoInline(origemInline)}`,
+        });
+        continue;
+      }
+
+      // Rótulo instrumental sem ocorrência anterior nenhuma não é
+      // referência quebrada: seção instrumental sem corpo é forma legítima
+      // do acervo (precedente: `musicas/ruja-o-leao.cifra`, curado à mão).
+      // Só o rótulo que espera corpo abaixo falha alto (precedente: TU ÉS BOM).
+      if (!esperaCorpoAbaixo(marcadores[m]!.rotulo)) continue;
       throw new Error(
         `seção "${marcadores[m]!.rotulo}" (linha ${marcadores[m]!.indice + 1}) está vazia e não há ocorrência anterior com conteúdo para repetir`,
       );
@@ -122,6 +168,9 @@ export function materializarSecoesReferenciadas(linhas: string[]): string[] {
   }
 
   const saida = [...linhas];
+  // Substituição antes da inserção: ela troca uma linha no lugar, sem mexer
+  // em índice nenhum, então os índices das inserções continuam válidos.
+  for (const { linha, texto } of substituicoes) saida[linha] = texto;
   insercoes.sort((a, b) => b.apos - a.apos);
   for (const { apos, conteudo } of insercoes) {
     const linhaSeguinte = saida[apos + 1];

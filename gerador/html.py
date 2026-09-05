@@ -50,7 +50,8 @@ def escrever(m, tom_destino, quebra_antes=False):
         p.append(f'<p{cls}><b>{esc(m["momento"])}</b></p>')
         cls = ''
     p.append(f'<p{cls}><b><span class=h>{esc(m["titulo"])}</span></b></p>')
-    p.append(f'<p><b><span class=h>{esc(m["artista"])}</span></b></p>')
+    if m.get('artista'):
+        p.append(f'<p><b><span class=h>{esc(m["artista"])}</span></b></p>')
     p.append(f'<p><b>Tom: {tom_destino}</b></p>')
     p.append('<p>&nbsp;</p>')
 

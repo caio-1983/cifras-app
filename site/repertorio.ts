@@ -1,15 +1,23 @@
 /**
- * Carrega `dados/repertorio.json` — a ponte temporária entre o repertório
- * Python e o site (ver `gerador/scripts/exportar_repertorio_json.py`).
+ * Carrega o acervo: `musicas/*.cifra` — a fonte da verdade — mais
+ * `dados/repertorio.json`, a ponte que ainda existe.
  *
- * Quando o formato `.cifra` estabilizar, este módulo passa a ler
- * `musicas/*.cifra` pelo parser do núcleo e o JSON some. O resto do site fala
- * com `MusicaDados`, que é o mesmo tipo que o emissor consome — então a troca
- * fica contida aqui.
+ * As duas fontes convivem porque nenhuma cobre a outra. O JSON tem os
+ * cultos já tocados e duas músicas que o acervo ainda não tem
+ * (`pai-de-multidoes`, tocada num culto, e `ah-jesus`); o acervo tem as
+ * outras ~330. **Na colisão de slug, o JSON ganha**: ele é modelado à mão e
+ * é o que os emissores reproduzem byte a byte nas 139 fixtures — trocá-lo
+ * por uma importação automática mudaria documento já validado em produção.
+ *
+ * O resto do site fala com `MusicaDados`, o mesmo tipo que o emissor
+ * consome, então a conversão fica contida aqui e em `cifraParaDados.ts`.
  */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { MusicaDados } from '../gerador-ts/dados-repertorio.ts';
 import { montarCultos, type Culto } from './cultos.ts';
+import { parseMusica } from '../src/index.ts';
+import { cifraParaDados } from './cifraParaDados.ts';
 
 export type { Culto, EntradaCulto } from './cultos.ts';
 
@@ -40,7 +48,34 @@ export interface Repertorio {
   cultoPorNome(nome: string): Culto | undefined;
 }
 
-export function carregarRepertorio(caminho: string): Repertorio {
+/**
+ * Lê `musicas/*.cifra`. Um arquivo que não parseia é PULADO, com aviso no
+ * log: 340 músicas na tela valem mais que um servidor que não sobe por
+ * causa de uma. O que não pode acontecer é o arquivo sumir em silêncio.
+ */
+function carregarAcervo(diretorio: string): Record<string, MusicaDados> {
+  let nomes: string[];
+  try {
+    nomes = readdirSync(diretorio).filter((n) => n.endsWith('.cifra'));
+  } catch {
+    // Sem diretório de acervo o site ainda funciona com o JSON — é o que
+    // acontece em qualquer instalação que não tenha (ainda) as músicas.
+    return {};
+  }
+
+  const acervo: Record<string, MusicaDados> = {};
+  for (const nome of nomes.sort()) {
+    const slug = nome.replace(/\.cifra$/, '');
+    try {
+      acervo[slug] = cifraParaDados(parseMusica(readFileSync(join(diretorio, nome), 'utf8'), nome)) as MusicaDados;
+    } catch (erro) {
+      console.warn(`[repertorio] ${nome} não entrou: ${(erro as Error).message}`);
+    }
+  }
+  return acervo;
+}
+
+export function carregarRepertorio(caminho: string, diretorioAcervo?: string): Repertorio {
   let bruto: ArquivoRepertorio;
   try {
     bruto = JSON.parse(readFileSync(caminho, 'utf8')) as ArquivoRepertorio;
@@ -53,7 +88,14 @@ export function carregarRepertorio(caminho: string): Repertorio {
     );
   }
 
-  const todas = Object.entries(bruto.musicas)
+  // O acervo entra primeiro e o JSON escreve por cima: na colisão de slug,
+  // quem vale é o modelo curado à mão que as fixtures reproduzem.
+  const juntas: Record<string, MusicaDados> = {
+    ...(diretorioAcervo ? carregarAcervo(diretorioAcervo) : {}),
+    ...bruto.musicas,
+  };
+
+  const todas = Object.entries(juntas)
     .map(([slug, m]) => ({ ...m, slug }))
     .sort(porTitulo);
 

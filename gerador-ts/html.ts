@@ -72,7 +72,7 @@ export function escrever(
     cls = '';
   }
   p.push(`<p${cls}><b><span class=h>${esc(m.titulo)}</span></b></p>`);
-  p.push(`<p><b><span class=h>${esc(m.artista)}</span></b></p>`);
+  if (m.artista) p.push(`<p><b><span class=h>${esc(m.artista)}</span></b></p>`);
   p.push(`<p><b>Tom: ${tomDestino}</b></p>`);
   p.push('<p>&nbsp;</p>');
 

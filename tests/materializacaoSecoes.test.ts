@@ -212,3 +212,31 @@ test('materializarSecoesReferenciadas: "[Verso 2]" NÃO casa com "[Verso 1]" —
     /seção "\[Verso 2\]".*não há ocorrência anterior/,
   );
 });
+
+test('[Intro] nu repetindo um [Intro] que já teve cifra é materializado', () => {
+  // Achado real em 7 arquivos (ACLAME AO SENHOR, TRIBUTO A YEHOVAH, MEU
+  // ABRIGO...): a intro aparece com cifra no começo e volta nua no meio da
+  // música. A exceção de `[Intro]` existe para NÃO FALHAR quando não há
+  // ocorrência anterior — não para impedir a repetição quando há. Sem isso
+  // a seção chegava vazia ao emissor, que recusava a música inteira.
+  const entrada = ['[Intro] | A | E |', '', '[Verso 1]', '>Eu canto', '', '[Intro]', '', '[Verso 1]', '>Eu canto'];
+  const saida = materializarSecoesReferenciadas(entrada);
+  // A cifra do instrumental mora na LINHA do marcador, não abaixo dele:
+  // repetir a seção é reproduzir a linha inteira, não inserir um corpo.
+  const intros = saida.filter((l) => l.startsWith('[Intro]'));
+  assert.deepEqual(intros, ['[Intro] | A | E |', '[Intro] | A | E |']);
+});
+
+test('[Intro] com cifra própria continua intocado — não é referência a nada', () => {
+  const entrada = ['[Intro] | A | E |', '', '[Verso 1]', '>Eu canto'];
+  assert.deepEqual(materializarSecoesReferenciadas(entrada), entrada);
+});
+
+test('[Intro] nu SEM ocorrência anterior continua tolerado, sem erro', () => {
+  // Precedente: `musicas/ruja-o-leao.cifra`, curado à mão, tem `[Intro
+  // teclado]` sozinho. Rótulo instrumental sem corpo é legítimo; quem falha
+  // alto é o rótulo que espera corpo (precedente TU ÉS BOM).
+  const entrada = ['[Intro teclado]', '', '[Verso 1]', '>Eu canto'];
+  assert.deepEqual(materializarSecoesReferenciadas(entrada), entrada);
+  assert.throws(() => materializarSecoesReferenciadas(['[Refrão]', '', '[Verso 1]', '>Eu canto']), /está vazia/);
+});

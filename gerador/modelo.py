@@ -70,7 +70,11 @@ def validar(m):
 
     Barato de rodar e pega os erros que só apareceriam no documento pronto.
     """
-    for campo in ('titulo', 'artista', 'tom', 'corpo'):
+    # 'artista' NÃO entra aqui: 90 das 341 músicas do acervo não registram
+    # autor no documento de origem. Exigir o campo obrigaria a inventar um
+    # nome ou a esconder um quarto da biblioteca. Sem artista, o emissor
+    # simplesmente não escreve a linha. Paridade em gerador-ts/modelo.ts.
+    for campo in ('titulo', 'tom', 'corpo'):
         if not m.get(campo):
             raise ValueError(f'música sem {campo}: {m.get("titulo", "?")!r}')
     from .transpor import NOTA_RE

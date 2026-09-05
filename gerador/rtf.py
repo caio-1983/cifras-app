@@ -83,7 +83,8 @@ def escrever(m, tom_destino, quebra_antes=False):
         out.append(par(esc(m['momento']), negrito=True, quebra=quebra))
         quebra = False
     out.append(par(esc(m['titulo']), tam=15, negrito=True, quebra=quebra))
-    out.append(par(esc(m['artista']), tam=15, negrito=True))
+    if m.get('artista'):
+        out.append(par(esc(m['artista']), tam=15, negrito=True))
     out.append(par(esc(f'Tom: {tom_destino}'), negrito=True))
     out.append(par(''))
 

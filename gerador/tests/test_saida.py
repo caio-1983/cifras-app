@@ -119,6 +119,30 @@ def test_validar_recusa_tipo_desconhecido():
                  'corpo': [('refrao', 'x')]})
 
 
-def test_validar_recusa_musica_sem_artista():
-    with pytest.raises(ValueError, match='artista'):
-        validar({'titulo': 'T', 'artista': '', 'tom': 'C', 'corpo': [let('x')]})
+def test_validar_aceita_musica_sem_artista():
+    """Regra invertida em 2026-09-05, junto com a entrada do acervo.
+
+    Antes, música sem artista era recusada. Das 341 do acervo, 90 não
+    registram autor no documento de origem — exigir o campo obrigaria a
+    inventar um nome ou a esconder um quarto da biblioteca. Título e tom
+    continuam obrigatórios: sem tom não há transposição, e sem título não
+    há como achar a música.
+    """
+    validar({'titulo': 'T', 'artista': '', 'tom': 'C', 'corpo': [let('x')]})
+    validar({'titulo': 'T', 'tom': 'C', 'corpo': [let('x')]})
+
+    with pytest.raises(ValueError, match='titulo'):
+        validar({'titulo': '', 'tom': 'C', 'corpo': [let('x')]})
+
+
+def test_emissores_omitem_a_linha_do_artista_quando_nao_ha():
+    """Sem artista não sai linha vazia — some a linha inteira, nos dois."""
+    sem = {'titulo': 'T', 'tom': 'C', 'corpo': [let('x')]}
+    com = {'titulo': 'T', 'artista': 'Fulano', 'tom': 'C', 'corpo': [let('x')]}
+
+    assert 'Fulano' in html.escrever(com, 'C')
+    assert '<span class=h></span>' not in html.escrever(sem, 'C')
+    assert html.escrever(sem, 'C').count('<span class=h>') == 1
+
+    assert 'Fulano' in rtf.escrever(com, 'C')
+    assert rtf.escrever(sem, 'C').count('fs30') < rtf.escrever(com, 'C').count('fs30')
