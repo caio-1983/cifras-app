@@ -20,10 +20,10 @@
  */
 import { esc } from '../gerador-ts/html.ts';
 
-/** Tokens + casca. Tudo em `@media screen`. */
 /** O nome do produto, num lugar só — aba, lateral e barra do topo. */
 const NOME_PRODUTO = 'Integra Music';
 
+/** Tokens + casca. Tudo em `@media screen`. */
 export const CSS_UI = `
 @media screen{
   :root{
@@ -91,8 +91,6 @@ export const CSS_UI = `
       object-fit:contain;vertical-align:-4px;margin-right:7px}
   .barra-topo .marca{flex:1 1 auto;min-width:0;font-weight:700;font-size:15px;
       letter-spacing:-.01em}
-  .barra-topo .marca span{display:block;font-weight:500;font-size:11.5px;
-      color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
   .icone-btn{flex:0 0 auto;width:40px;height:40px;display:grid;place-items:center;
       border-radius:var(--raio);color:var(--muted);text-decoration:none}
   .icone-btn:hover{background:var(--raised);color:var(--ink)}
@@ -202,7 +200,7 @@ export const CSS_UI = `
         height:100vh;padding:18px 12px;background:var(--rail);
         color:var(--rail-ink);border-right:0}
     .lateral .marca{display:flex;align-items:center;gap:11px;
-        padding:6px 8px 22px;font-weight:700;font-size:17px;
+        padding:6px 8px 18px;font-weight:700;font-size:17px;
         letter-spacing:-.02em}
     /* A marca traz as próprias cores, então o slot não tinge nada: só
        reserva a altura e deixa a imagem caber inteira. object-fit:contain
@@ -211,9 +209,6 @@ export const CSS_UI = `
     .lateral .marca .selo{flex:0 0 auto;height:34px;width:auto;max-width:88px;
         object-fit:contain;object-position:left center}
     .lateral .marca .nome{min-width:0}
-    .lateral .marca .nome span{display:block;font-weight:500;font-size:10.5px;
-        color:var(--rail-muted);letter-spacing:.08em;text-transform:uppercase;
-        margin-top:2px}
     .grupo-nav{margin-top:16px;padding:0 10px 7px;font-size:10px;font-weight:700;
         letter-spacing:.13em;text-transform:uppercase;color:var(--rail-muted)}
     .lateral a{display:flex;align-items:center;gap:11px;min-height:42px;
@@ -327,7 +322,7 @@ function lateral(ativo: string): string {
   return (
     '<nav class=lateral aria-label="Navegação principal">' +
     '<div class=marca><img class=selo src="/estatico/marca.png" alt="">' +
-    `<span class=nome>${NOME_PRODUTO}<span>Painel de operação</span></span></div>` +
+    `<span class=nome>${NOME_PRODUTO}</span></div>` +
     grupos +
     `<div class=rodape-nav>${rodape}</div></nav>`
   );
@@ -348,7 +343,7 @@ function barraTopo(): string {
   return (
     '<div class=barra-topo>' +
     '<div class=marca><img class=selo-topo src="/estatico/marca.png" alt="">' +
-    `${NOME_PRODUTO}<span>Painel de operação</span></div>` +
+    `${NOME_PRODUTO}</div>` +
     `<a class=icone-btn href="/configuracoes" aria-label="Configurações">${icone('config')}</a>` +
     '</div>'
   );
