@@ -21,7 +21,14 @@
  */
 import { CSS, escrever, esc } from '../gerador-ts/html.ts';
 import type { MusicaIndexada, Repertorio } from './repertorio.ts';
-import type { Culto, EntradaCulto } from './cultos.ts';
+import {
+  PERIODOS,
+  PERIODOS_OFERECIDOS,
+  identidadeDoCulto,
+  segmentoCulto,
+  type Culto,
+  type EntradaCulto,
+} from './cultos.ts';
 import { TONS, passoDeTom } from './tons.ts';
 import { codificarOrdem } from './setlist.ts';
 import { CSS_UI, CSS_CIFRA, paginaPainel, envelope, icone } from './ui.ts';
@@ -94,6 +101,40 @@ const CSS_PREPARO = `
      momento tem que ficar na mesma linha do artista. */
   .setlist .nome span.papel{display:inline;color:var(--anot);font-weight:600}
   .setlist .tom{grid-area:tom;display:flex;align-items:center;gap:4px}
+  /* O menu de tom é absoluto: o cartão da setlist não pode recortá-lo. */
+  .setlist-cartao{overflow:visible}
+  .menu-tom{position:relative}
+  .menu-tom>summary{list-style:none;cursor:pointer}
+  .menu-tom>summary::-webkit-details-marker{display:none}
+  .menu-tom[open]>summary{background:var(--acento);color:#fff}
+  :root[data-theme=dark] .menu-tom[open]>summary{color:#16181d}
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme=light]) .menu-tom[open]>summary{color:#16181d}
+  }
+  .menu-lista{position:absolute;right:0;top:calc(100% + 6px);z-index:40;
+      display:grid;grid-template-columns:repeat(4,minmax(46px,1fr));gap:4px;
+      padding:8px;border-radius:12px;background:var(--surface);
+      border:1px solid var(--line);box-shadow:0 14px 34px rgba(10,12,20,.22)}
+  /* No celular a linha é estreita: o menu sai alinhado à direita e não
+     estoura a tela. */
+  @media (max-width:420px){.menu-lista{right:-6px;grid-template-columns:repeat(4,minmax(44px,1fr))}}
+  .menu-lista a{display:flex;flex-direction:column;align-items:center;
+      justify-content:center;gap:1px;min-height:44px;border-radius:8px;
+      background:var(--raised);color:var(--ink);text-decoration:none;
+      font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:15px}
+  .menu-lista a:hover{background:var(--acento-fraco)}
+  /* O tom escolhido usa o laranja da cifra, como o seletor da página da
+     música: aqui o tom é ESCOLHA sobre a cifra, não etiqueta de lista. */
+  .menu-lista a[aria-current=true]{background:var(--cifra);color:#fff}
+  .menu-lista a[aria-current=true] .enar{color:#ffe6d5}
+  .menu-lista .origem{box-shadow:inset 0 -3px 0 var(--cifra)}
+  .menu-lista .enar{font-family:var(--sans);font-weight:500;font-size:10px;
+      color:var(--muted);line-height:1}
+  .menu-abrir{grid-column:1/-1;margin-top:2px;min-height:40px!important;
+      font-family:var(--sans)!important;font-size:13px!important;
+      font-weight:600!important;color:var(--muted)!important;
+      background:transparent!important}
+  .menu-abrir:hover{color:var(--ink)!important;background:var(--raised)!important}
   .setlist .tom .passo{width:30px;height:30px;display:grid;place-items:center;
       border-radius:8px;color:var(--muted);text-decoration:none;font-weight:700;
       font-size:15px;background:var(--raised)}
@@ -201,6 +242,53 @@ const CSS_PREPARO = `
   .cultos .nome b{display:block;font-size:16px;font-weight:600}
   .cultos .nome span{display:block;margin-top:2px;color:var(--muted);font-size:13px}
   .cultos .tons{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+  /* O culto do aparelho traz um botão fora do link — o link é o cartão
+     inteiro, e "Apagar" não pode ser um clique errado dentro dele. */
+  .cultos li{display:flex;align-items:center;gap:10px}
+  .cultos li>a{flex:1 1 auto;min-width:0}
+  .cultos li>.btn{flex:0 0 auto;min-height:38px;padding:0 13px;font-size:13px}
+
+  /* ------------------------------------------------ abrir culto */
+  .criar-culto{margin:14px 0 24px}
+  .form-criar{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px}
+  .form-criar label{display:grid;gap:6px;min-width:0;color:var(--muted);
+      font-size:13px;font-weight:600}
+  .form-criar label.larga{grid-column:1/-1}
+  .form-criar .opc{font-weight:500;text-transform:none}
+  .form-criar .campo{color:var(--ink)}
+  .modal-acoes{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;
+      margin-top:2px}
+  .modal-acoes .btn{min-height:48px}
+  @media (max-width:560px){
+    .form-criar{grid-template-columns:1fr}
+    .modal-acoes .btn{flex:1 1 auto}
+  }
+
+  /* O modal é o mesmo cartão, centrado. Sem <dialog> aberto ele não existe na
+     tela — e o formulário continua acessível pelo <noscript>. */
+  .modal{border:0;padding:0;max-width:min(560px,94vw);width:100%;
+      border-radius:16px;background:var(--surface);color:var(--ink);
+      box-shadow:0 24px 60px rgba(10,12,20,.35)}
+  .modal::backdrop{background:rgba(10,12,20,.55)}
+  .modal-topo{padding:20px 20px 0}
+  .modal-topo h2{font-size:20px;letter-spacing:-.015em}
+  .modal-topo .sub{margin:6px 0 0;color:var(--muted);font-size:13.5px}
+  .modal .erro{margin:14px 20px 0;padding:10px 14px;border-radius:var(--raio);
+      background:var(--acento-fraco);color:var(--alerta);font-size:13.5px}
+  .modal .erro ul{margin:0;padding-left:18px}
+  .modal .erro li+li{margin-top:4px}
+  /* A setlist digitada é o único campo que cresce: seis linhas cabem um culto
+     inteiro sem rolar, e monoespaçada porque tom é dado. */
+  .campo-alto{min-height:auto;padding:10px 14px;line-height:1.5;resize:vertical;
+      font-family:ui-monospace,Menlo,monospace;font-size:14px}
+
+  /* ------------------------------------------------ agenda */
+  .lista-cultos{margin-top:6px}
+  .lista-cultos .vazio{padding:22px 4px}
+  .ultimo-culto{margin-top:16px}
+  .ultimo-culto .cartao-topo h2{font-size:19px;letter-spacing:-.015em}
+  .ultimo-culto .rot{display:block;color:var(--muted);font-size:11.5px;
+      font-weight:700;letter-spacing:.09em;text-transform:uppercase}
 
   /* ------------------------------------------------ configurações */
   .prefs{display:grid;gap:14px;margin-top:14px}
@@ -222,6 +310,31 @@ const JS_LIMPAR = `function limpar(s){return (s||'').normalize('NFD').replace(/[
  * Filtro de lista, genérico: todo `input[data-filtro="<id da lista>"]` filtra
  * os `li[data-busca]` daquela lista e revela o `[data-vazio="<id>"]`.
  */
+/**
+ * O menu de tom: um aberto por vez, e fecha com Escape ou clique fora.
+ *
+ * Só isso — abrir, escolher e navegar já funcionam sem JavaScript, porque o
+ * menu é `<details>` com `href` de verdade dentro.
+ */
+const SCRIPT_MENU_TOM = `<script>
+(function(){
+  function todos(){return document.querySelectorAll('details.menu-tom')}
+  function fechar(exceto){
+    todos().forEach(function(d){if(d!==exceto)d.open=false});
+  }
+  document.addEventListener('toggle',function(e){
+    var d=e.target;
+    if(d.classList&&d.classList.contains('menu-tom')&&d.open)fechar(d);
+  },true);
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('details.menu-tom'))fechar(null);
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape')fechar(null);
+  });
+})();
+</script>`;
+
 const SCRIPT_FILTRO = `<script>
 (function(){
   ${JS_LIMPAR}
@@ -264,15 +377,33 @@ const SCRIPT_FILTRO = `<script>
 
 // ---------------------------------------------------------------- culto
 
-/** O link de uma ação do painel de culto — sempre com a setlist resultante. */
-function linkCulto(nome: string, entradas: readonly EntradaCulto[], atual: number): string {
-  const q = new URLSearchParams({ ordem: codificarOrdem(entradas), atual: String(atual) });
-  return `/culto/${encodeURIComponent(nome)}?${q}`;
+/**
+ * Onde o aparelho anota os cultos que ele criou. É índice, não fonte: cada
+ * setlist continua em `cifras:culto:novo/<nome>` e no link.
+ */
+const INDICE_NOVOS = 'cifras:cultos-novos';
+
+/**
+ * O link de uma ação do painel de culto — sempre com a setlist resultante e,
+ * no culto criado na tela, com o nome, o tema e a data que o usuário
+ * escreveu: eles vivem na URL, não no servidor.
+ */
+function linkCulto(culto: Culto, entradas: readonly EntradaCulto[], atual: number): string {
+  const q = new URLSearchParams({
+    ...identidadeDoCulto(culto),
+    ordem: codificarOrdem(entradas),
+    atual: String(atual),
+  });
+  return `/culto/${segmentoCulto(culto)}?${q}`;
 }
 
-function linkExecucao(nome: string, entradas: readonly EntradaCulto[], i: number): string {
-  const q = new URLSearchParams({ ordem: codificarOrdem(entradas), i: String(i) });
-  return `/executar/${encodeURIComponent(nome)}?${q}`;
+function linkExecucao(culto: Culto, entradas: readonly EntradaCulto[], i: number): string {
+  const q = new URLSearchParams({
+    ...identidadeDoCulto(culto),
+    ordem: codificarOrdem(entradas),
+    i: String(i),
+  });
+  return `/executar/${segmentoCulto(culto)}?${q}`;
 }
 
 function trocar(entradas: readonly EntradaCulto[], a: number, b: number): EntradaCulto[] {
@@ -288,6 +419,67 @@ function comTom(entradas: readonly EntradaCulto[], i: number, tom: string): Entr
 }
 
 /**
+ * O aviso de sair sem salvar.
+ *
+ * Só aparece quando há alteração depois do último "Salvar culto", e só para
+ * links que **saem do culto** — trocar tom, reordenar e adicionar são links
+ * para o próprio painel, e avisar a cada um deles seria alarme que se aprende
+ * a ignorar. Iniciar o culto também não conta: a setlist viaja no link.
+ */
+const DIALOGO_SAIR =
+  '<dialog class=modal id=dlg-sair aria-labelledby=tit-sair>' +
+  '<div class=modal-topo><h2 id=tit-sair>Sair sem salvar?</h2>' +
+  '<p class=sub>Este culto mudou depois do último salvamento neste aparelho.</p></div>' +
+  '<div class=modal-acoes>' +
+  '<button class=btn id=sair-cancelar type=button>Continuar aqui</button>' +
+  '<button class=btn id=sair-descartar type=button>Sair sem salvar</button>' +
+  '<button class="btn btn-forte" id=sair-salvar type=button>Salvar e sair</button>' +
+  '</div></dialog>';
+
+/**
+ * O tom de uma música da setlist: a pastilha abre a lista dos 16 tons **ali
+ * mesmo**, na linha, em vez de levar para outra tela.
+ *
+ * É `<details>` com links de verdade dentro, não um `<select>` nem um menu de
+ * JavaScript: sem script o menu abre e escolher navega igual; com script ele
+ * só ganha fechar por Escape e por clique fora (`SCRIPT_MENU_TOM`). Mesma
+ * disciplina do resto do painel — toda ação é `href`.
+ *
+ * A cifra continua a um clique, no rodapé do menu: era o que a pastilha fazia
+ * antes, e quem preparava usava.
+ */
+function menuDeTom(
+  culto: Culto,
+  entradas: readonly EntradaCulto[],
+  i: number,
+  atual: number,
+): string {
+  const e = entradas[i]!;
+  const opcoes = TONS.map((o) => {
+    const eAtual = o.tom === e.tom;
+    const origem = o.tom === e.musica.tom ? ' origem' : '';
+    const enar = o.enarmonico ? `<span class=enar>${esc(o.enarmonico)}</span>` : '';
+    // Enarmônico não é sinônimo: `E → Gb` e `E → F#` são respostas diferentes
+    // e as duas estão certas — por isso as 16 aparecem, não 12.
+    return (
+      `<a class="tom-opcao${origem}" href="${esc(linkCulto(culto, comTom(entradas, i, o.tom), atual))}" ` +
+      `aria-current="${eAtual}" title="${esc(o.tom === e.musica.tom ? `${o.tom} — tom de origem` : o.tom)}">` +
+      `<span>${esc(o.tom)}</span>${enar}</a>`
+    );
+  }).join('');
+
+  return (
+    '<details class=menu-tom>' +
+    `<summary class=pastilha title="Trocar o tom de ${esc(e.musica.titulo)}" ` +
+    `aria-label="Tom ${esc(e.tom)} — trocar">${esc(e.tom)}</summary>` +
+    `<div class=menu-lista>${opcoes}` +
+    `<a class=menu-abrir href="/musica/${esc(e.slug)}?tom=${encodeURIComponent(e.tom)}">` +
+    `Abrir a cifra em ${esc(e.tom)}</a>` +
+    '</div></details>'
+  );
+}
+
+/**
  * A tela principal: o culto atual, sua setlist e a música atual.
  *
  * `momento` (Ofertório, Apelo / Ceia) aparece aqui e **só aqui** entre as
@@ -300,8 +492,15 @@ export function paginaCulto(
   entradas: EntradaCulto[],
   atual: number,
 ): string {
-  const canonica = codificarOrdem(culto.entradas);
-  const alterada = codificarOrdem(entradas) !== canonica;
+  // **O culto novo não tem ordem canônica.** As entradas dele são a setlist
+  // que acabou de chegar pela URL — usá-las como "ordem original" faria o
+  // script concluir "nada mudou" e apagar o rascunho a cada visita, que é
+  // como a setlist salva sumia ao voltar para a agenda.
+  const canonica = culto.novo ? '' : codificarOrdem(culto.entradas);
+  // "Alterada" só faz sentido contra uma ordem que foi tocada. Culto criado
+  // na tela não tem ordem canônica: tudo nele é rascunho, e dizer "alterada"
+  // sugeriria um original que não existe.
+  const alterada = !culto.novo && codificarOrdem(entradas) !== canonica;
   const atualEntrada = entradas[atual];
 
   const itens = entradas
@@ -316,7 +515,7 @@ export function paginaCulto(
       ) =>
         destino === null
           ? `<span aria-hidden="true">${glifo}</span>`
-          : `<a class="${classe}" href="${esc(linkCulto(culto.nome, destino, novoAtual))}" ` +
+          : `<a class="${classe}" href="${esc(linkCulto(culto, destino, novoAtual))}" ` +
             `title="${esc(rotulo)}" aria-label="${esc(rotulo)}">${glifo}</a>`;
 
       // Remover a música atual move o cursor para trás, para não apontar
@@ -329,21 +528,22 @@ export function paginaCulto(
         `<li data-atual="${eAtual}">` +
         `<span class=marca aria-hidden="true">${eAtual ? '&#9654;' : ''}</span>` +
         `<span class=num>${String(i + 1).padStart(2, '0')}</span>` +
-        `<a class=nome href="${esc(linkCulto(culto.nome, entradas, i))}">` +
+        `<a class=nome href="${esc(linkCulto(culto, entradas, i))}">` +
         `<b>${esc(e.musica.titulo)}</b>` +
         `<span>${papel}${esc(e.musica.artista)}</span></a>` +
         '<span class=tom>' +
-        `<a class=passo href="${esc(linkCulto(culto.nome, comTom(entradas, i, passoDeTom(e.tom, -1)), atual))}" ` +
+        `<a class=passo href="${esc(linkCulto(culto, comTom(entradas, i, passoDeTom(e.tom, -1)), atual))}" ` +
         `aria-label="Descer meio tom">&minus;</a>` +
-        `<a class=pastilha href="/musica/${esc(e.slug)}?tom=${encodeURIComponent(e.tom)}" ` +
-        `title="Abrir a cifra em ${esc(e.tom)}">${esc(e.tom)}</a>` +
-        `<a class=passo href="${esc(linkCulto(culto.nome, comTom(entradas, i, passoDeTom(e.tom, 1)), atual))}" ` +
+        menuDeTom(culto, entradas, i, atual) +
+        `<a class=passo href="${esc(linkCulto(culto, comTom(entradas, i, passoDeTom(e.tom, 1)), atual))}" ` +
         `aria-label="Subir meio tom">+</a>` +
         '</span>' +
         '<span class=acoes>' +
         acao('Subir na ordem', '&uarr;', i > 0 ? trocar(entradas, i, i - 1) : null, i > 0 && atual === i ? i - 1 : atual) +
         acao('Descer na ordem', '&darr;', i < entradas.length - 1 ? trocar(entradas, i, i + 1) : null, i < entradas.length - 1 && atual === i ? i + 1 : atual) +
-        acao('Tirar do culto', '&times;', entradas.length > 1 ? semEsta : null, atualDepois, 'remover') +
+        // No culto do repertório a última música não sai — a setlist tocada
+        // não fica vazia. No culto novo sai: montar é errar e desfazer.
+        acao('Tirar do culto', '&times;', entradas.length > 1 || culto.novo ? semEsta : null, atualDepois, 'remover') +
         '</span></li>'
       );
     })
@@ -365,7 +565,7 @@ export function paginaCulto(
           .map(
             (m) =>
               `<li data-busca="${esc(`${m.titulo} ${m.artista}`.toLowerCase())}">` +
-              `<a href="${esc(linkCulto(culto.nome, [...entradas, { slug: m.slug, tom: m.tom, musica: m }], atual))}">` +
+              `<a href="${esc(linkCulto(culto, [...entradas, { slug: m.slug, tom: m.tom, musica: m }], atual))}">` +
               `<span class=nome><b>${esc(m.titulo)}</b><span>${esc(m.artista)}</span></span>` +
               `<span class=pastilha>${esc(m.tom)}</span></a></li>`,
           )
@@ -384,44 +584,65 @@ export function paginaCulto(
       `<span class=pastilha>${esc(atualEntrada.tom)}</span>` +
       (atualEntrada.musica.momento ? `<span class=chip>${esc(atualEntrada.musica.momento)}</span>` : '') +
       '</div></div>' +
-      `<a class="btn btn-forte" href="${esc(linkExecucao(culto.nome, entradas, atual))}">Executar daqui</a>` +
+      `<a class="btn btn-forte" href="${esc(linkExecucao(culto, entradas, atual))}">Executar daqui</a>` +
       `<a class=btn href="/musica/${esc(atualEntrada.slug)}?tom=${encodeURIComponent(atualEntrada.tom)}">Abrir cifra</a>` +
       '</div>' +
       `<div class="cifra previa">${fragmentoCifra(atualEntrada.musica, atualEntrada.tom)}</div>` +
       '<nav class=passos aria-label="Navegar na setlist">' +
-      `<a class="btn${atual === 0 ? ' desligado' : ''}" href="${esc(linkCulto(culto.nome, entradas, Math.max(0, atual - 1)))}"` +
+      `<a class="btn${atual === 0 ? ' desligado' : ''}" href="${esc(linkCulto(culto, entradas, Math.max(0, atual - 1)))}"` +
       `${atual === 0 ? ' aria-disabled=true' : ''}>&larr; Anterior</a>` +
       `<span class=conta>${String(atual + 1).padStart(2, '0')} / ${String(entradas.length).padStart(2, '0')}</span>` +
-      `<a class="btn${atual >= entradas.length - 1 ? ' desligado' : ''}" href="${esc(linkCulto(culto.nome, entradas, Math.min(entradas.length - 1, atual + 1)))}"` +
+      `<a class="btn${atual >= entradas.length - 1 ? ' desligado' : ''}" href="${esc(linkCulto(culto, entradas, Math.min(entradas.length - 1, atual + 1)))}"` +
       `${atual >= entradas.length - 1 ? ' aria-disabled=true' : ''}>Próxima &rarr;</a>` +
       '</nav></div>'
     : '<p class=vazio>Setlist vazia. Adicione uma música para começar.</p>';
 
   const miolo =
     '<header class=culto-topo><div class=quem>' +
-    `<h1>${esc(culto.rotulo)}</h1>` +
-    // O período é o que a convenção do nome do arquivo carrega. Não há ano,
-    // horário nem duração no dado — e a tela não os inventa (docs/site.md).
-    (culto.periodo ? `<p class=sub>${esc(culto.periodo)}</p>` : '') +
+    // Quem escreveu um nome ao abrir o culto vê o nome dele; a data vira
+    // subtítulo. Sem nome, o título é o rótulo da convenção, como sempre.
+    `<h1>${esc(culto.titulo || culto.rotulo)}</h1>` +
+    // O período é o que a convenção do nome do arquivo carrega. Horário e
+    // duração não existem no dado — e a tela não os inventa (docs/site.md).
+    ((sub) => (sub ? `<p class=sub>${sub}</p>` : ''))(
+      [
+        culto.titulo ? esc(culto.rotulo) : null,
+        culto.periodo ? esc(culto.periodo) : null,
+        culto.tema ? `<span class=chip>${esc(culto.tema)}</span>` : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    ) +
     '</div><div class=acoes>' +
     '<span class=status id=status data-estado=preparando>Preparando</span>' +
-    `<a class="btn btn-forte btn-grande" id=iniciar href="${esc(linkExecucao(culto.nome, entradas, atual))}">Iniciar culto</a>` +
+    // Só o culto criado na tela tem o que salvar: o do repertório já é dado
+    // versionado, e "salvar" ali prometeria escrita que não existe. Nasce
+    // `hidden` porque quem salva é o script — sem JS não há onde guardar.
+    (culto.novo ? '<button class=btn id=salvar type=button hidden>Salvar culto</button>' : '') +
+    `<a class="btn btn-forte btn-grande" id=iniciar href="${esc(linkExecucao(culto, entradas, atual))}">Iniciar culto</a>` +
     '<button class="btn btn-fantasma" id=encerrar hidden type=button>Encerrar culto</button>' +
     '</div></header>' +
-    (alterada
-      ? '<p class=rascunho data-estado=alterada><b>Setlist alterada</b> — vale neste aparelho e no link. ' +
-        `<a class=btn href="${esc(`/culto/${encodeURIComponent(culto.nome)}?atual=${atual}&limpar=1`)}">Restaurar ordem do culto</a>` +
+    (culto.novo ? DIALOGO_SAIR : '') +
+    (culto.novo
+      ? '<p class=rascunho data-estado=alterada id=faixa-salvo><b>Culto novo</b> — ' +
+        '<span id=estado-salvo>existe neste aparelho e no link; o servidor não guarda nada.</span> ' +
         '<button class=btn type=button id=copiar>Copiar link para o celular</button></p>'
-      : '<p class=rascunho data-estado=canonica><b>Ordem do culto</b> — como foi tocado. ' +
-        '<button class=btn type=button id=copiar>Copiar link para o celular</button></p>') +
+      : alterada
+        ? '<p class=rascunho data-estado=alterada><b>Setlist alterada</b> — vale neste aparelho e no link. ' +
+          `<a class=btn href="${esc(`/culto/${segmentoCulto(culto)}?atual=${atual}&limpar=1`)}">Restaurar ordem do culto</a>` +
+          '<button class=btn type=button id=copiar>Copiar link para o celular</button></p>'
+        : '<p class=rascunho data-estado=canonica><b>Ordem do culto</b> — como foi tocado. ' +
+          '<button class=btn type=button id=copiar>Copiar link para o celular</button></p>') +
     '<div class=culto-grade>' +
     '<section class="cartao setlist-cartao" aria-labelledby=tit-setlist>' +
     '<div class=cartao-topo><div class=quem>' +
     '<h2 id=tit-setlist>Setlist do culto</h2>' +
     `<p class=sub>${entradas.length} ${entradas.length === 1 ? 'música' : 'músicas'} · ` +
-    `${alterada ? 'ordem alterada neste aparelho' : 'ordem e tom em que foi tocado'}</p>` +
+    `${culto.novo ? 'montada neste aparelho' : alterada ? 'ordem alterada neste aparelho' : 'ordem e tom em que foi tocado'}</p>` +
     '</div></div>' +
-    `<ol class=setlist>${itens}</ol>` +
+    (entradas.length === 0
+      ? '<p class=vazio style="padding:24px 16px">Nenhuma música ainda. Comece adicionando.</p>'
+      : `<ol class=setlist>${itens}</ol>`) +
     `<div class=cartao-rodape>${adicionar}</div>` +
     '</section>' +
     blocoAtual +
@@ -433,7 +654,7 @@ export function paginaCulto(
     css: CSS_PAINEL,
     miolo,
     largo: true,
-    scripts: SCRIPT_FILTRO + scriptCulto(culto.nome, canonica),
+    scripts: SCRIPT_FILTRO + SCRIPT_MENU_TOM + scriptCulto(culto, canonica),
   });
 }
 
@@ -445,16 +666,42 @@ export function paginaCulto(
  * sobreviver a um recarregamento, (2) o estado ao vivo/encerrado, e (3) o
  * link pronto para copiar. `localStorage` pode lançar — tudo em try/catch.
  */
-function scriptCulto(nome: string, canonica: string): string {
+function scriptCulto(culto: Culto, canonica: string): string {
   return `<script>
 (function(){
-  var K='cifras:culto:'+${JSON.stringify(nome)};
+  var NOME=${JSON.stringify(culto.nome)};
+  var IDX=${JSON.stringify(INDICE_NOVOS)};
+  // A chave inclui o segmento: culto novo e culto do repertório com o mesmo
+  // nome são coisas diferentes e não podem dividir rascunho.
+  var K='cifras:culto:'+${JSON.stringify(culto.novo ? 'novo/' : '')}+NOME;
   var CANONICA=${JSON.stringify(canonica)};
   var url=new URL(location.href);
   var ordem=url.searchParams.get('ordem');
 
   function ler(k){try{return localStorage.getItem(k)}catch(e){return null}}
   function por(k,v){try{v===null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}
+
+  // Culto criado na tela não existe no servidor: o índice do aparelho é o
+  // único jeito de reencontrá-lo em /cultos depois de fechar a aba.
+  ${
+    culto.novo
+      ? `try{
+    var idx=JSON.parse(ler(IDX)||'[]');
+    if(!(idx instanceof Array))idx=[];
+    // O que já foi salvo sobrevive à visita: reescrever a entrada não pode
+    // apagar o carimbo de "salvo".
+    var antes=null;
+    idx=idx.filter(function(c){if(c&&c.nome===NOME){antes=c;return false}return true});
+    idx.unshift({nome:NOME,rotulo:${JSON.stringify(culto.rotulo)},periodo:${JSON.stringify(culto.periodo)},
+      titulo:${JSON.stringify(culto.titulo ?? null)},tema:${JSON.stringify(culto.tema ?? null)},
+      data:${JSON.stringify(culto.dataISO ?? null)},
+      // A identidade já codificada: é com ela que a agenda remonta o link.
+      id:${JSON.stringify(new URLSearchParams(identidadeDoCulto(culto)).toString())},
+      salvo:antes?antes.salvo:null,em:antes?antes.em:null});
+    por(IDX,JSON.stringify(idx.slice(0,40)));
+  }catch(e){}`
+      : ''
+  }
 
   if(url.searchParams.get('limpar')==='1'){
     por(K,null);
@@ -489,6 +736,109 @@ function scriptCulto(nome: string, canonica: string): string {
   encerrar.addEventListener('click',function(){por(KE,'encerrado');pintar()});
   pintar();
 
+  // ------------------------------------------------ salvar no aparelho
+  //
+  // "Salvar" aqui é o que o produto pode prometer hoje: o culto e a setlist
+  // ficam neste aparelho (e no link). **Não há escrita no servidor** — a
+  // regra do projeto é sem banco, e prometer nuvem num botão seria mentira
+  // que só se descobre no aparelho do outro músico.
+  var salvar=document.getElementById('salvar');
+  var estadoSalvo=document.getElementById('estado-salvo');
+
+  function ordemAtual(){return (new URL(location.href)).searchParams.get('ordem')||''}
+  function entradaNoIndice(){
+    try{
+      var l=JSON.parse(ler(IDX)||'[]');
+      if(l instanceof Array)for(var i=0;i<l.length;i++)if(l[i]&&l[i].nome===NOME)return l[i];
+    }catch(e){}
+    return null;
+  }
+  function contar(o){var n=o?o.split(',').length:0;return n+(n===1?' música':' músicas')}
+  function dizerEstado(){
+    if(!estadoSalvo)return;
+    var e=entradaNoIndice(),o=ordemAtual();
+    if(!o)estadoSalvo.textContent='sem música ainda; adicione e salve.';
+    else if(!e||!e.salvo)estadoSalvo.textContent='ainda não salvo neste aparelho.';
+    else if(e.salvo===o)estadoSalvo.textContent='salvo neste aparelho, com '+contar(o)+'.';
+    else estadoSalvo.textContent='alterado depois de salvo ('+contar(e.salvo)+' salvas).';
+  }
+
+  function salvarAgora(){
+    try{
+      var l=JSON.parse(ler(IDX)||'[]');
+      if(!(l instanceof Array))l=[];
+      var o=ordemAtual();
+      l=l.map(function(c){
+        if(c&&c.nome===NOME){c.salvo=o;c.em=new Date().toISOString()}
+        return c;
+      });
+      por(IDX,JSON.stringify(l));
+    }catch(e){}
+    dizerEstado();
+  }
+
+  if(salvar){
+    salvar.hidden=false;
+    salvar.addEventListener('click',function(){
+      salvarAgora();
+      salvar.textContent='Culto salvo';
+      setTimeout(function(){salvar.textContent='Salvar culto'},2000);
+    });
+    dizerEstado();
+  }
+
+  // --------------------------------------------- sair sem salvar
+  //
+  // O que está em jogo é o carimbo de salvo, não a setlist: o rascunho
+  // continua neste aparelho de qualquer jeito. Por isso o aviso fala em
+  // "mudou depois do último salvamento", e não em perder o culto.
+  var dlgSair=document.getElementById('dlg-sair');
+  var EXEC=${JSON.stringify('/executar/novo/' + encodeURIComponent(culto.nome))};
+  var indoPara=null;
+  var liberado=false;
+
+  function sujo(){
+    var o=ordemAtual();
+    if(!o)return false; // culto ainda sem música não tem o que salvar
+    var e=entradaNoIndice();
+    return !e||e.salvo!==o;
+  }
+  // Editar não é sair: os links do próprio painel (e o de iniciar o culto,
+  // que leva a setlist no ?ordem=) passam direto.
+  function fica(a){
+    var u=new URL(a.getAttribute('href'),location.href);
+    return u.origin===location.origin&&(u.pathname===location.pathname||u.pathname===EXEC);
+  }
+
+  if(dlgSair){
+    document.addEventListener('click',function(ev){
+      var a=ev.target.closest('a[href]');
+      if(!a||ev.metaKey||ev.ctrlKey||ev.shiftKey||ev.button||a.target==='_blank')return;
+      if(fica(a)){liberado=true;return}
+      if(!sujo())return;
+      ev.preventDefault();
+      indoPara=a.href;
+      if(dlgSair.showModal)dlgSair.showModal();else dlgSair.setAttribute('open','');
+    });
+    function fecharSair(){
+      if(dlgSair.close)dlgSair.close();else dlgSair.removeAttribute('open');
+    }
+    function sair(){liberado=true;location.href=indoPara}
+    document.getElementById('sair-cancelar').addEventListener('click',function(){
+      indoPara=null;fecharSair();
+    });
+    document.getElementById('sair-descartar').addEventListener('click',sair);
+    document.getElementById('sair-salvar').addEventListener('click',function(){
+      salvarAgora();sair();
+    });
+    // Fechar a aba ou recarregar não passa por link nenhum: aí quem avisa é
+    // o navegador, com o texto dele.
+    window.addEventListener('beforeunload',function(ev){
+      if(liberado||!sujo())return;
+      ev.preventDefault();ev.returnValue='';
+    });
+  }
+
   // ------------------------------------------------ link para o celular
   var copiar=document.getElementById('copiar');
   if(copiar)copiar.addEventListener('click',function(){
@@ -501,24 +851,6 @@ function scriptCulto(nome: string, canonica: string): string {
   });
 })();
 </script>`;
-}
-
-/** Painel sem nenhum culto no repertório — estado vazio honesto. */
-export function paginaSemCulto(rep: Repertorio): string {
-  return paginaPainel({
-    titulo: 'Culto — Painel',
-    ativo: '/',
-    css: CSS_PAINEL,
-    miolo:
-      '<header class=culto-topo><div class=quem><h1>Nenhum culto</h1>' +
-      '<p class=sub>O painel monta a setlist a partir dos cultos do repertório.</p>' +
-      '</div></header>' +
-      '<p class=aviso>Os cultos vêm de <code>CULTOS</code> em ' +
-      '<code>gerador/repertorio/__init__.py</code> e chegam ao site por ' +
-      '<code>dados/repertorio.json</code>. Regenere com ' +
-      '<code>python gerador/scripts/exportar_repertorio_json.py</code>.</p>' +
-      `<p><a class="btn btn-forte" href="/musicas">Ver as ${rep.todas.length} músicas</a></p>`,
-  });
 }
 
 // ---------------------------------------------------------- biblioteca
@@ -565,7 +897,276 @@ export function paginaBiblioteca(rep: Repertorio, opcoes: { foco: boolean }): st
   });
 }
 
+// -------------------------------------------------------------- agenda
+
+/** A data de hoje como o `<input type=date>` a quer, no fuso de quem serve. */
+function hojeISO(agora = new Date()): string {
+  const dois = (n: number) => String(n).padStart(2, '0');
+  return `${agora.getFullYear()}-${dois(agora.getMonth() + 1)}-${dois(agora.getDate())}`;
+}
+
+/** O que o usuário já tinha digitado — para o formulário voltar preenchido. */
+export interface RascunhoCulto {
+  nome?: string;
+  data?: string;
+  periodo?: string;
+  tema?: string;
+  musicas?: string;
+}
+
+/**
+ * O formulário de abrir culto.
+ *
+ * "Abrir" aqui é montar a URL do culto — o servidor é sem estado e não guarda
+ * culto nenhum (`docs/site.md`). **Data e período** viram o nome na convenção
+ * do padrão visual (`14SET_Noite`), que é a identidade do culto; **nome e
+ * tema** são texto de quem preparou e viajam na query, junto com a setlist,
+ * porque é o link que atravessa para o celular.
+ *
+ * A **setlist** é digitada de uma vez, uma música por linha com o tom no fim
+ * — é como a ordem do culto já é escrita à mão, e evita cinco buscas e cinco
+ * cliques para montar cinco músicas (`site/setlistTexto.ts`). Ela vira o
+ * `?ordem=` no mesmo redirecionamento; não é campo guardado em lugar nenhum.
+ */
+function formCriarCulto(v: RascunhoCulto = {}): string {
+  const escolhido = (chave: string) => (v.periodo === chave ? ' selected' : '');
+  // O `value=""` na primeira opção é o que faz o `required` do `<select>`
+  // valer: sem ele o navegador considera a lista sempre respondida.
+  const opcoes = [
+    `<option value="" disabled${v.periodo ? '' : ' selected'}>Escolha o período</option>`,
+  ]
+    .concat(
+      PERIODOS_OFERECIDOS.map(
+        (chave) =>
+          `<option value="${esc(chave)}"${escolhido(chave)}>${esc(PERIODOS[chave]!)}</option>`,
+      ),
+    )
+    .join('');
+
+  return (
+    '<form class=form-criar method=get action="/culto/novo">' +
+    '<label class=larga>Nome do culto <span class=opc>(opcional)</span>' +
+    `<input class=campo name=nome maxlength=60 autocomplete=off value="${esc(v.nome ?? '')}" ` +
+    'placeholder="Culto de domingo"></label>' +
+    `<label>Data<input class=campo type=date name=data required value="${esc(v.data || hojeISO())}"></label>` +
+    `<label>Período<select class=campo name=periodo required>${opcoes}</select></label>` +
+    '<label class=larga>Tema <span class=opc>(opcional)</span>' +
+    `<input class=campo name=tema maxlength=40 autocomplete=off value="${esc(v.tema ?? '')}" ` +
+    'placeholder="Gratidão"></label>' +
+    '<label class=larga>Setlist <span class=opc>(opcional — uma música por linha, o tom no fim)</span>' +
+    '<textarea class="campo campo-alto" name=musicas rows=6 autocomplete=off ' +
+    'placeholder="VITORIOSO ÉS - G&#10;QUEBRANTADO (C)&#10;TEU TOQUE">' +
+    `${esc(v.musicas ?? '')}</textarea></label>` +
+    '<div class=modal-acoes>' +
+    '<button class=btn type=button data-fechar hidden>Cancelar</button>' +
+    '<button class="btn btn-forte" type=submit>Criar culto</button>' +
+    '</div></form>'
+  );
+}
+
+/**
+ * O modal de abrir culto, mais o mesmo formulário em `<noscript>`.
+ *
+ * `<dialog>` sem JavaScript não abre — por isso o botão nasce `hidden` e é o
+ * script que o mostra, e por isso o `<noscript>` traz o formulário na página.
+ * O painel inteiro funciona sem JS e abrir culto não podia ser a exceção.
+ */
+function blocoModalCulto(erros: readonly string[], rascunho: RascunhoCulto): string {
+  return (
+    '<dialog class=modal id=dlg-culto aria-labelledby=tit-criar>' +
+    '<div class=modal-topo><h2 id=tit-criar>Novo culto</h2>' +
+    '<p class=sub>Escreva a setlist agora ou monte depois, no painel. O culto ' +
+    'fica neste aparelho e no link — o servidor não guarda nada.</p></div>' +
+    (erros.length
+      ? `<div class=erro role=alert><ul>${erros.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>`
+      : '') +
+    formCriarCulto(rascunho) +
+    '</dialog>' +
+    '<noscript><section class="cartao criar-culto">' +
+    '<div class=cartao-topo><div class=quem><h2>Novo culto</h2>' +
+    '<p class=sub>Sem JavaScript o formulário abre aqui mesmo.</p></div></div>' +
+    formCriarCulto(rascunho) +
+    '</section></noscript>'
+  );
+}
+
+/**
+ * As listas de culto que só o aparelho conhece.
+ *
+ * Sai vazio do servidor de propósito: ele não sabe — nem pode saber — que
+ * cultos alguém abriu. Quem preenche é o `SCRIPT_CULTOS_LOCAIS`, a partir do
+ * índice em `localStorage`.
+ */
+function blocoListaLocal(id: 'futuros' | 'meus', titulo: string, vazio: string): string {
+  return (
+    `<section class=lista-cultos id=${id}${id === 'meus' ? ' hidden' : ''}>` +
+    `<h2 class=secao-tit>${esc(titulo)}<em id=${id}-conta></em></h2>` +
+    `<ul class=cultos id=${id}-lista></ul>` +
+    `<p class=vazio id=${id}-vazio>${esc(vazio)}</p>` +
+    '</section>'
+  );
+}
+
+/**
+ * Os cultos do aparelho, na tela.
+ *
+ * Preenche o que existir na página: `#futuros` só o que é de hoje em diante
+ * (a agenda), `#meus` todos (o histórico). A data completa vem do índice —
+ * o **nome** do culto não tem ano, e sem ano não dá para dizer o que é
+ * futuro. Entrada sem data (culto aberto antes deste campo existir) aparece
+ * na lista completa, nunca na agenda: chutar que é futuro seria inventar.
+ */
+const SCRIPT_CULTOS_LOCAIS = `<script>
+(function(){
+  var IDX=${JSON.stringify(INDICE_NOVOS)};
+  var HOJE=(function(){
+    var d=new Date(),p=function(n){return (n<10?'0':'')+n};
+    return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+  })();
+
+  function ler(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function por(k,v){try{v===null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}
+  function idx(){
+    try{var v=JSON.parse(ler(IDX)||'[]');return v instanceof Array?v:[]}catch(e){return []}
+  }
+  function chave(nome){return 'cifras:culto:novo/'+nome}
+
+  function apagar(nome){
+    por(IDX,JSON.stringify(idx().filter(function(o){return o&&o.nome!==nome})));
+    por(chave(nome),null);
+    por(chave(nome)+':estado',null);
+    pintarTudo();
+  }
+
+  function item(c){
+    var ordem=ler(chave(c.nome))||'';
+    var n=ordem?ordem.split(',').length:0;
+    var q=(c.id||'')+(ordem?(c.id?'&':'')+'ordem='+encodeURIComponent(ordem):'');
+    var li=document.createElement('li');
+    var a=document.createElement('a');
+    a.href='/culto/novo/'+encodeURIComponent(c.nome)+(q?'?'+q:'');
+    var nome=document.createElement('span');nome.className='nome';
+    var b=document.createElement('b');b.textContent=c.titulo||c.rotulo||c.nome;
+    var sub=document.createElement('span');
+    var salvo=!c.salvo?'não salvo':(c.salvo===ordem?'salvo':'alterado depois de salvo');
+    sub.textContent=[c.titulo?c.rotulo:null,c.periodo,c.tema,
+      n?(n+(n===1?' música':' músicas')):'setlist vazia',salvo].filter(Boolean).join(' · ');
+    nome.appendChild(b);nome.appendChild(sub);
+    a.appendChild(nome);
+    li.appendChild(a);
+    var x=document.createElement('button');
+    x.type='button';x.className='btn';x.textContent='Apagar';
+    x.setAttribute('aria-label','Apagar '+(c.titulo||c.rotulo||c.nome)+' deste aparelho');
+    x.addEventListener('click',function(){apagar(c.nome)});
+    li.appendChild(x);
+    return li;
+  }
+
+  function pintar(id,cultos,rotulo){
+    var secao=document.getElementById(id);
+    if(!secao)return;
+    var lista=document.getElementById(id+'-lista');
+    var vazio=document.getElementById(id+'-vazio');
+    var conta=document.getElementById(id+'-conta');
+    if(id==='meus')secao.hidden=cultos.length===0;
+    if(conta)conta.textContent=cultos.length?cultos.length+' '+rotulo:'';
+    if(vazio)vazio.hidden=cultos.length>0;
+    lista.innerHTML='';
+    cultos.forEach(function(c){lista.appendChild(item(c))});
+  }
+
+  function pintarTudo(){
+    var todos=idx();
+    // Do mais próximo para o mais distante: a agenda é sobre o que vem aí.
+    var futuros=todos.filter(function(c){return c&&c.data&&c.data>=HOJE})
+      .sort(function(a,b){return a.data<b.data?-1:a.data>b.data?1:0});
+    pintar('futuros',futuros,futuros.length===1?'marcado':'marcados');
+    pintar('meus',todos,todos.length===1?'aberto aqui':'abertos aqui');
+  }
+  pintarTudo();
+})();
+</script>`;
+
+/** Abre o modal. Sem `showModal` (navegador antigo), o diálogo abre na página. */
+const SCRIPT_MODAL_CULTO = `<script>
+(function(){
+  var dlg=document.getElementById('dlg-culto');
+  var abrir=document.getElementById('abrir-culto');
+  if(!dlg||!abrir)return;
+  abrir.hidden=false;
+  function mostrar(){
+    if(dlg.showModal)dlg.showModal();else dlg.setAttribute('open','');
+    var campo=dlg.querySelector('input[name=nome]');
+    if(campo)campo.focus();
+  }
+  abrir.addEventListener('click',mostrar);
+  dlg.querySelectorAll('[data-fechar]').forEach(function(b){
+    b.hidden=false;
+    b.addEventListener('click',function(){
+      if(dlg.close)dlg.close();else dlg.removeAttribute('open');
+    });
+  });
+  // O 400 do formulário volta com o modal já aberto: o erro tem que estar
+  // onde o usuário errou, não numa tela que ele fechou.
+  if(dlg.querySelector('.erro'))mostrar();
+})();
+</script>`;
+
+/**
+ * A tela inicial: a agenda de cultos.
+ *
+ * Era um redirecionamento para o culto mais recente do repertório, o que
+ * deixava o culto **aberto neste aparelho** inalcançável pelo menu — o
+ * servidor não sabe que ele existe. Agora a tela lista o que vem aí, oferece
+ * abrir um culto novo, e mantém o último culto tocado a um toque.
+ */
+export function paginaAgenda(
+  rep: Repertorio,
+  opcoes: { erros?: readonly string[]; rascunho?: RascunhoCulto } = {},
+): string {
+  const ultimo = rep.cultos[0];
+
+  const blocoUltimo = ultimo
+    ? '<section class="cartao ultimo-culto">' +
+      '<div class=cartao-topo><div class=quem><span class=rot>Último culto tocado</span>' +
+      `<h2>${esc(ultimo.rotulo)}</h2>` +
+      `<p class=sub>${esc([ultimo.periodo, `${ultimo.entradas.length} músicas`].filter(Boolean).join(' · '))}</p>` +
+      '</div>' +
+      `<a class="btn btn-forte" href="/culto/${segmentoCulto(ultimo)}">Abrir</a>` +
+      '<a class=btn href="/cultos">Ver anteriores</a>' +
+      '</div></section>'
+    : '<p class=aviso>Nenhum culto no repertório ainda. Os tocados vêm de ' +
+      '<code>gerador/repertorio/__init__.py</code> por <code>dados/repertorio.json</code>.</p>';
+
+  return paginaPainel({
+    titulo: 'Culto',
+    ativo: '/',
+    css: CSS_PAINEL,
+    miolo:
+      '<header class=culto-topo><div class=quem><h1>Culto</h1>' +
+      '<p class=sub>Os cultos marcados neste aparelho. Abrir um culto monta o ' +
+      'link — o servidor não guarda nada.</p></div>' +
+      '<div class=acoes>' +
+      '<button class="btn btn-forte btn-grande" id=abrir-culto type=button hidden>+ Novo culto</button>' +
+      '</div></header>' +
+      blocoModalCulto(opcoes.erros ?? [], opcoes.rascunho ?? {}) +
+      blocoListaLocal(
+        'futuros',
+        'Próximos cultos',
+        'Nenhum culto marcado de hoje em diante. Abra um culto para começar.',
+      ) +
+      blocoUltimo,
+    scripts: SCRIPT_MODAL_CULTO + SCRIPT_CULTOS_LOCAIS,
+  });
+}
+
 // ------------------------------------------------------------ histórico
+
+/** O topo do histórico: quem quer abrir um culto vai para a agenda. */
+const TOPO_HISTORICO =
+  '<header class=culto-topo><div class=quem><h1>Cultos anteriores</h1>' +
+  '<p class=sub>Os cultos que já foram tocados, com a ordem e os tons de cada um.</p></div>' +
+  '<div class=acoes><a class="btn btn-forte" href="/">+ Novo culto</a></div></header>';
 
 export function paginaHistorico(rep: Repertorio): string {
   if (rep.cultos.length === 0) {
@@ -573,7 +1174,11 @@ export function paginaHistorico(rep: Repertorio): string {
       titulo: 'Cultos anteriores',
       ativo: '/cultos',
       css: CSS_PAINEL,
-      miolo: '<h1 class=secao-tit>Cultos anteriores</h1><p class=vazio>Nenhum culto no repertório.</p>',
+      miolo:
+        TOPO_HISTORICO +
+        blocoListaLocal('meus', 'Cultos abertos neste aparelho', '') +
+        '<p class=vazio>Nenhum culto no repertório.</p>',
+      scripts: SCRIPT_CULTOS_LOCAIS,
     });
   }
 
@@ -596,10 +1201,13 @@ export function paginaHistorico(rep: Repertorio): string {
     ativo: '/cultos',
     css: CSS_PAINEL,
     miolo:
-      `<h1 class=secao-tit>Cultos anteriores<em>${rep.cultos.length} tocados</em></h1>` +
+      TOPO_HISTORICO +
+      blocoListaLocal('meus', 'Cultos abertos neste aparelho', '') +
+      `<h2 class=secao-tit>Já tocados<em>${rep.cultos.length} no repertório</em></h2>` +
       `<ul class=cultos>${itens}</ul>` +
       '<p class=aviso>Cada culto abre no painel com a ordem e os tons em que foi tocado. ' +
       'Alterar a setlist ali não muda o histórico — o rascunho fica no aparelho e no link.</p>',
+    scripts: SCRIPT_CULTOS_LOCAIS,
   });
 }
 

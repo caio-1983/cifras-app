@@ -30,11 +30,17 @@ async function comApp<T>(fn: (app: ReturnType<typeof criarServidor>) => Promise<
 }
 
 // ------------------------------------------------------------------ rotas
-test('GET / abre o culto mais recente — a tela principal é o culto, não a lista', async () => {
+test('GET / é a agenda: o que vem aí, abrir culto, e o último tocado a um toque', async () => {
   await comApp(async (app) => {
     const r = await app.inject({ method: 'GET', url: '/' });
-    assert.equal(r.statusCode, 302);
-    assert.equal(r.headers.location, `/culto/${encodeURIComponent(rep.cultos[0]!.nome)}`);
+    assert.equal(r.statusCode, 200);
+    assert.ok(r.body.includes('id=abrir-culto'), 'faltou o botão de abrir culto');
+    assert.ok(r.body.includes('Próximos cultos'), 'faltou a lista do que vem aí');
+    // O culto tocado continua a um toque — era para onde `/` levava antes.
+    assert.ok(
+      r.body.includes(`href="/culto/${encodeURIComponent(rep.cultos[0]!.nome)}"`),
+      'faltou o último culto tocado',
+    );
   });
 });
 

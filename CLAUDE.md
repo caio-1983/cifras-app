@@ -39,8 +39,9 @@ pergunte**. Detalhe em `docs/rumo.md`.
 - **Emissores em produção** — os cultos de 23/08, 28/08, 30/08 e 06/09 de 2026
   saíram de `gerador/` e foram tocados. Portados para TS em `gerador-ts/`, byte a
   byte contra o Python.
-- **Site no ar, como Painel de Operação Musical** — `site/`. A tela principal é o
-  **culto**: setlist (reordenar, remover, adicionar, transpor, música atual) e um
+- **Site no ar, como Painel de Operação Musical** — `site/`. A tela inicial é a
+  **agenda** (próximos cultos deste aparelho + abrir culto); a tela de trabalho é
+  o **culto**: setlist (reordenar, remover, adicionar, transpor, música atual) e um
   **modo execução** escuro para o celular no palco. O conceito é preparar no
   computador e executar pelo celular; o que atravessa é o link, porque o servidor
   é só leitura e sem estado (`docs/site.md`).
@@ -55,10 +56,12 @@ pergunte**. Detalhe em `docs/rumo.md`.
   texto de `.docx`, split de medley, e a separação arranjo/letra da decisão nova.
   O inventário do Drive está em `bruto/`.
 
-A montagem de culto na tela existe, mas **monta sobre culto que já existe** e o
-resultado é rascunho no aparelho e no link. Criar culto novo, salvar setlist,
-Sala do Culto compartilhada entre celulares, edição, upload e login continuam
-fora — são os sprints 2 a 5, e a importação vem antes.
+A montagem de culto na tela existe, e o culto **também pode nascer na tela**
+(botão "Abrir culto" na agenda, com nome, data, período e tema) — mas nada disso
+escreve: o culto novo é nome na URL mais rascunho no aparelho e no link
+(`docs/site.md`). Salvar setlist no servidor, Sala do Culto compartilhada entre
+celulares, edição, upload e login continuam fora — são os sprints 2 a 5, e a
+importação vem antes.
 
 ## Mapa
 

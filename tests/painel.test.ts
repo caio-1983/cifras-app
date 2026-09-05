@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { criarServidor } from '../site/servidor.ts';
 import { carregarRepertorio } from '../site/repertorio.ts';
-import { lerNomeDeCulto, montarCultos } from '../site/cultos.ts';
+import { cultoNovo, lerNomeDeCulto, montarCultos, nomeDeCultoNovo } from '../site/cultos.ts';
 import { codificarOrdem, decodificarOrdem, indiceValido } from '../site/setlist.ts';
 import { TONS, CICLO, CLASSE_DE_ALTURA, passoDeTom } from '../site/tons.ts';
 import { escrever } from '../gerador-ts/html.ts';
@@ -101,7 +101,8 @@ test('GET /culto/06SET traz a setlist na ordem e nos tons em que foi tocada', as
     }
     // O número da posição e o tom tocado saem na tela.
     assert.match(r.body, /class=num>01</);
-    assert.ok(r.body.includes('>Bb</a>'), 'faltou o tom tocado de TEU TOQUE');
+    // O tom fica na linha, agora como o gatilho do menu de tons.
+    assert.ok(r.body.includes('>Bb</summary>'), 'faltou o tom tocado de TEU TOQUE');
     // QUEBRANTADO foi tocada em C, não no seu tom de origem (G).
     assert.equal(rep.porSlug('quebrantado')!.tom, 'G');
     assert.ok(r.body.includes('href="/musica/quebrantado?tom=C"'));
@@ -128,6 +129,35 @@ test('a música atual sai do emissor, sem reimplementação, e o contador confer
       'a prévia da música atual não é a saída do emissor',
     );
     assert.match(r.body, /class=conta>03 \/ 05</);
+  });
+});
+
+test('o tom abre a lista dos 16 na própria linha, e escolher é link de verdade', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: `/culto/${CULTO}` });
+    const setlist = blocoSetlist(r.body);
+
+    // Um menu por música, e a pastilha é o gatilho — não um link para outra
+    // tela, que era o que tirava o usuário do culto para ver a cifra.
+    assert.equal((setlist.match(/<details class=menu-tom>/g) ?? []).length, 5);
+    assert.ok(setlist.includes('<summary class=pastilha'), 'a pastilha tem que abrir o menu');
+
+    // As 16 grafias aparecem: E→Gb e E→F# são respostas diferentes.
+    const primeiro = setlist.slice(setlist.indexOf('<div class=menu-lista>'));
+    for (const o of TONS) {
+      assert.ok(primeiro.includes(`>${o.tom}</span>`), `faltou ${o.tom} no menu`);
+    }
+
+    // Escolher é `href` que troca o tom daquela música e mantém o resto —
+    // sem JavaScript o menu abre e a escolha navega igual.
+    const emE = 'vitorioso-es:E,eu-vou-construir:C,teu-toque:Bb,quebrantado:C,a-maior-honra:Ab';
+    const link = acharHref(r.body, (h) => ordemDe(h) === emE);
+    const depois = await app.inject({ method: 'GET', url: link });
+    assert.equal(depois.statusCode, 200);
+    assert.ok(blocoSetlist(depois.body).includes('>E</summary>'), 'a escolha não valeu');
+
+    // E a cifra continua a um clique, no rodapé do menu.
+    assert.ok(setlist.includes('href="/musica/quebrantado?tom=C"'));
   });
 });
 
@@ -423,6 +453,275 @@ test('o histórico lista os cultos e cada um abre no painel', async () => {
       assert.ok(r.body.includes(`href="/culto/${encodeURIComponent(c.nome)}"`), `faltou ${c.nome}`);
       assert.ok(r.body.includes(c.rotulo), `faltou o rótulo de ${c.nome}`);
     }
+  });
+});
+
+// ------------------------------------------------------ criar culto
+test('nomeDeCultoNovo segue a convenção — e descarta o ano, que a convenção não tem', () => {
+  assert.equal(nomeDeCultoNovo('2026-09-14'), '14SET');
+  assert.equal(nomeDeCultoNovo('2026-09-14', 'Noite'), '14SET_Noite');
+  assert.equal(nomeDeCultoNovo('2026-01-05', 'Manha'), '05JAN_Manha');
+  // Período fora do vocabulário não vira sufixo livre: o nome vai para a URL
+  // e para a chave do rascunho.
+  assert.equal(nomeDeCultoNovo('2026-09-14', 'Madrugada'), '14SET');
+  for (const ruim of ['', '14/09/2026', '2026-13-01', '2026-09-32', 'hoje']) {
+    assert.equal(nomeDeCultoNovo(ruim), null, `aceitou ${ruim}`);
+  }
+});
+
+test('cultoNovo rotula pela convenção e recusa nome que não sabe ler', () => {
+  const c = cultoNovo('14SET_Noite', []);
+  assert.equal(c?.rotulo, 'Culto de 14 de setembro');
+  assert.equal(c?.periodo, 'Noite');
+  assert.equal(c?.novo, true);
+  assert.equal(cultoNovo('Ensaio', []), null);
+});
+
+test('a agenda traz o modal de novo culto, com nome, data, período, tema e setlist', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: '/' });
+    assert.equal(r.statusCode, 200);
+    assert.ok(r.body.includes('<dialog class=modal id=dlg-culto'), 'faltou o modal');
+    assert.ok(r.body.includes('action="/culto/novo"'), 'faltou o formulário');
+    assert.ok(r.body.includes('method=get'), 'o formulário tem que ser navegação, não fetch');
+    assert.ok(r.body.includes('>+ Novo culto</button>'), 'o botão é "Novo culto"');
+    for (const campo of ['name=nome', 'type=date name=data', 'name=periodo', 'name=tema', 'name=musicas']) {
+      assert.ok(r.body.includes(campo), `faltou ${campo}`);
+    }
+    // Período oferece manhã, tarde e noite, nessa ordem — a ordem do dia — e
+    // é obrigatório: dois cultos no mesmo dia são dois cultos.
+    assert.ok(r.body.includes('name=periodo required'), 'o período tem que ser obrigatório');
+    const opcoes = [...r.body.matchAll(/<option value="\w*"[^>]*>([^<]*)<\/option>/g)].map((m) => m[1]);
+    assert.deepEqual(opcoes.slice(0, 4), ['Escolha o período', 'Manhã', 'Tarde', 'Noite']);
+    // `Sexta` existe no acervo (28AGO_Sexta) e continua sendo lida, mas não é
+    // oferecida: o formulário não é o vocabulário de leitura.
+    assert.ok(!r.body.includes('>Sexta<'), 'Sexta não deveria estar no formulário');
+    // `<dialog>` não abre sem JavaScript: o formulário tem que estar na
+    // página também, ou abrir culto vira a única coisa que exige script.
+    const noscript = r.body.slice(r.body.indexOf('<noscript>'), r.body.indexOf('</noscript>'));
+    assert.ok(noscript.includes('action="/culto/novo"'), 'faltou o formulário sem JS');
+    assert.ok(r.body.includes('id=abrir-culto type=button hidden'), 'o botão do modal nasce escondido');
+  });
+});
+
+test('abrir culto é montar a URL — o servidor não guarda nada', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: '/culto/novo?data=2026-09-14&periodo=Noite' });
+    assert.equal(r.statusCode, 302);
+    assert.equal(r.headers.location, '/culto/novo/14SET_Noite?d=2026-09-14');
+
+    // Duas vezes a mesma data dá o mesmo culto: o nome é a identidade, e o
+    // segundo "abrir" reabre o primeiro em vez de duplicá-lo.
+    const outra = await app.inject({ method: 'GET', url: '/culto/novo?data=2026-09-14&periodo=Noite' });
+    assert.equal(outra.headers.location, r.headers.location);
+
+    // Nome e tema não cabem na convenção do nome: viajam na query, como a
+    // setlist, porque é o link que atravessa para o celular.
+    const comNome = await app.inject({
+      method: 'GET',
+      url: '/culto/novo?data=2026-09-14&periodo=Noite&nome=Culto da Família&tema=Gratidão',
+    });
+    const destino = new URL(comNome.headers.location as string, 'http://x');
+    assert.equal(destino.pathname, '/culto/novo/14SET_Noite');
+    assert.equal(destino.searchParams.get('titulo'), 'Culto da Família');
+    assert.equal(destino.searchParams.get('tema'), 'Gratidão');
+    assert.equal(destino.searchParams.get('d'), '2026-09-14');
+  });
+});
+
+test('o nome e o tema aparecem no painel e sobrevivem ao primeiro clique', async () => {
+  await comApp(async (app) => {
+    const m = rep.todas[0]!;
+    const q = 'titulo=Culto+da+Fam%C3%ADlia&tema=Gratid%C3%A3o&d=2026-09-14';
+    const r = await app.inject({ method: 'GET', url: `/culto/novo/14SET_Noite?${q}` });
+    assert.equal(r.statusCode, 200);
+    assert.ok(r.body.includes('<h1>Culto da Família</h1>'), 'o nome escrito é o título da tela');
+    // Com ano informado o rótulo pode dizer o ano; a convenção do nome não tem.
+    assert.ok(r.body.includes('Culto de 14 de setembro de 2026'));
+    assert.ok(r.body.includes('Gratidão'));
+    // Todo link do painel carrega a identidade junto com a ordem.
+    assert.ok(
+      r.body.includes(`titulo=Culto+da+Fam%C3%ADlia&amp;tema=Gratid%C3%A3o&amp;d=2026-09-14&amp;ordem=${m.slug}`),
+      'o link de adicionar música perdeu o nome/tema/data',
+    );
+  });
+});
+
+test('o período é obrigatório: dois cultos no mesmo dia são dois cultos', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: '/culto/novo?data=2026-09-20' });
+    assert.equal(r.statusCode, 400);
+    assert.ok(r.body.includes('Escolha o período do culto.'));
+    // O que já estava escrito continua na tela — errar o período não pode
+    // custar a setlist digitada.
+    const comSetlist = await app.inject({
+      method: 'GET',
+      url: `/culto/novo?data=2026-09-20&musicas=${encodeURIComponent('QUEBRANTADO')}`,
+    });
+    assert.equal(comSetlist.statusCode, 400);
+    assert.ok(comSetlist.body.includes('QUEBRANTADO</textarea>'));
+  });
+});
+
+test('sair com alteração não salva pergunta antes — e editar não conta como sair', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({
+      method: 'GET',
+      url: '/culto/novo/20SET_Manha?d=2026-09-20&ordem=quebrantado:G',
+    });
+    assert.ok(r.body.includes('id=dlg-sair'), 'faltou o aviso de sair sem salvar');
+    assert.ok(r.body.includes('Sair sem salvar?'));
+    // Três saídas: continuar, sair perdendo o carimbo, ou salvar e sair.
+    for (const b of ['id=sair-cancelar', 'id=sair-descartar', 'id=sair-salvar']) {
+      assert.ok(r.body.includes(b), `faltou ${b}`);
+    }
+    // Trocar tom, reordenar e adicionar são links para o próprio painel —
+    // avisar a cada um seria alarme que se aprende a ignorar. Iniciar o culto
+    // também passa: a setlist viaja no link.
+    assert.ok(r.body.includes('u.pathname===location.pathname||u.pathname===EXEC'));
+    assert.ok(r.body.includes('"/executar/novo/20SET_Manha"'));
+
+    // O culto do repertório não tem o que salvar, logo não tem o que avisar.
+    const tocado = await app.inject({ method: 'GET', url: `/culto/${CULTO}` });
+    assert.ok(!tocado.body.includes('id=dlg-sair'));
+  });
+});
+
+test('o culto novo não tem ordem canônica — senão o rascunho é apagado ao voltar', async () => {
+  await comApp(async (app) => {
+    const ordem = 'quebrantado:G,teu-toque:Bb';
+    const r = await app.inject({
+      method: 'GET',
+      url: `/culto/novo/20SET_Manha?d=2026-09-20&ordem=${encodeURIComponent(ordem)}`,
+    });
+    // O script guarda o rascunho com `ordem === CANONICA ? apagar : guardar`.
+    // Com a setlist atual como "canônica", guardar virava apagar — e a
+    // setlist salva sumia ao voltar para a agenda.
+    assert.ok(r.body.includes('var CANONICA="";'), 'o culto novo não pode ter ordem canônica');
+    assert.ok(!r.body.includes(`var CANONICA="${ordem}"`));
+
+    // O culto do repertório continua tendo: é a ordem em que foi tocado.
+    const tocado = await app.inject({ method: 'GET', url: `/culto/${CULTO}` });
+    assert.ok(tocado.body.includes(`var CANONICA="${CANONICA}";`));
+  });
+});
+
+test('salvar culto é do culto aberto na tela, e diz onde salva', async () => {
+  await comApp(async (app) => {
+    const novo = await app.inject({ method: 'GET', url: '/culto/novo/20SET_Manha?d=2026-09-20' });
+    assert.ok(novo.body.includes('id=salvar'), 'faltou o botão de salvar');
+    assert.ok(novo.body.includes('>Salvar culto</button>'));
+    // Sem JS não há onde guardar: o botão nasce escondido e o script o mostra.
+    assert.ok(novo.body.includes('id=salvar type=button hidden'));
+    assert.ok(novo.body.includes('id=estado-salvo'), 'faltou o estado do salvamento');
+
+    // O culto do repertório não tem o que salvar: é dado versionado, e um
+    // botão ali prometeria escrita que não existe.
+    const doRepertorio = await app.inject({ method: 'GET', url: `/culto/${CULTO}` });
+    assert.ok(!doRepertorio.body.includes('id=salvar'), 'o culto tocado não deveria ter salvar');
+  });
+});
+
+test('a data só vale se concordar com o nome do culto — o nome é a identidade', async () => {
+  await comApp(async (app) => {
+    // `?d=` de outro dia (link editado à mão) é descartado, e o rótulo volta
+    // a ser o da convenção, sem ano.
+    const r = await app.inject({ method: 'GET', url: '/culto/novo/14SET_Noite?d=2026-03-02' });
+    assert.ok(r.body.includes('Culto de 14 de setembro'));
+    assert.ok(!r.body.includes('de 2026'), 'mostrou uma data que não é a do culto aberto');
+  });
+});
+
+test('data inválida volta para a página de cultos com o motivo, não com 500', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: '/culto/novo?data=' });
+    assert.equal(r.statusCode, 400);
+    assert.ok(r.body.includes('Escolha uma data válida'));
+    assert.ok(r.body.includes('action="/culto/novo"'), 'o formulário continua na tela');
+  });
+});
+
+test('o culto novo abre vazio e monta a setlist pelos mesmos links do repertório', async () => {
+  await comApp(async (app) => {
+    const vazio = await app.inject({ method: 'GET', url: '/culto/novo/14SET_Noite' });
+    assert.equal(vazio.statusCode, 200);
+    assert.ok(vazio.body.includes('Culto de 14 de setembro'));
+    assert.ok(vazio.body.includes('Nenhuma música ainda'));
+    // Sem música não há o que executar: a tela oferece adicionar.
+    assert.ok(vazio.body.includes('Adicionar música'));
+
+    const m = rep.todas[0]!;
+    assert.ok(
+      vazio.body.includes(`/culto/novo/14SET_Noite?ordem=${m.slug}%3A${encodeURIComponent(m.tom)}`),
+      'o link de adicionar tem que apontar para o próprio culto novo',
+    );
+
+    const com = await app.inject({
+      method: 'GET',
+      url: `/culto/novo/14SET_Noite?ordem=${m.slug}:${encodeURIComponent(m.tom)}&atual=0`,
+    });
+    assert.equal(com.statusCode, 200);
+    assert.ok(com.body.includes(m.titulo));
+    assert.ok(com.body.includes('Culto novo'), 'não é "setlist alterada": não há ordem tocada');
+    assert.ok(!com.body.includes('Restaurar ordem do culto'), 'não há ordem para restaurar');
+    // Com uma música só, ainda dá para tirar: montar é errar e desfazer.
+    assert.ok(com.body.includes('aria-label="Tirar do culto"'));
+  });
+});
+
+test('o culto novo executa pelo link, e setlist vazia volta para a preparação', async () => {
+  await comApp(async (app) => {
+    const m = rep.todas[0]!;
+    const ordem = `${m.slug}:${m.tom}`;
+    const r = await app.inject({
+      method: 'GET',
+      url: `/executar/novo/14SET_Noite?ordem=${encodeURIComponent(ordem)}&i=0`,
+    });
+    assert.equal(r.statusCode, 200);
+    assert.ok(r.body.includes(m.titulo));
+    assert.ok(r.body.includes('/culto/novo/14SET_Noite'), 'o "voltar" tem que ir para o culto novo');
+
+    const semMusica = await app.inject({ method: 'GET', url: '/executar/novo/14SET_Noite' });
+    assert.equal(semMusica.statusCode, 302);
+    assert.equal(semMusica.headers.location, '/culto/novo/14SET_Noite');
+  });
+});
+
+test('nome fora da convenção não vira culto — 404 em vez de rótulo cru na tela', async () => {
+  await comApp(async (app) => {
+    for (const url of ['/culto/novo/Ensaio', '/executar/novo/Ensaio']) {
+      const r = await app.inject({ method: 'GET', url });
+      assert.equal(r.statusCode, 404, url);
+    }
+  });
+});
+
+test('criar culto não atropela o culto do repertório: as rotas são distintas', async () => {
+  await comApp(async (app) => {
+    const c = rep.cultos[0]!;
+    const doRepertorio = await app.inject({ method: 'GET', url: `/culto/${encodeURIComponent(c.nome)}` });
+    assert.equal(doRepertorio.statusCode, 200);
+    assert.ok(doRepertorio.body.includes('Ordem do culto'), 'o culto tocado continua com a ordem canônica');
+    // E o mesmo nome sob /novo/ é outro culto, com rascunho em outra chave.
+    const novo = await app.inject({ method: 'GET', url: `/culto/novo/${encodeURIComponent(c.nome)}` });
+    assert.equal(novo.statusCode, 200);
+    assert.ok(novo.body.includes('Nenhuma música ainda'));
+    assert.ok(novo.body.includes("'cifras:culto:'+\"novo/\""));
+  });
+});
+
+test('a agenda lista o que vem aí a partir do aparelho — o servidor não sabe', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: '/' });
+    // Sai vazia do servidor: quem preenche é o script, com o índice local.
+    assert.ok(r.body.includes('id=futuros-lista'), 'faltou a lista de próximos');
+    assert.ok(r.body.includes('Nenhum culto marcado de hoje em diante'));
+    assert.ok(r.body.includes('cifras:cultos-novos'), 'faltou o script que lê o índice');
+    // E o painel do culto novo é quem escreve nesse índice, com a data
+    // completa — sem ano não dá para dizer o que é futuro.
+    const painel = await app.inject({ method: 'GET', url: '/culto/novo/14SET_Noite?d=2026-09-14' });
+    assert.ok(painel.body.includes('cifras:cultos-novos'));
+    assert.ok(painel.body.includes('data:"2026-09-14"'));
   });
 });
 

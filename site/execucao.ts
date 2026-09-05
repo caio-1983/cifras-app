@@ -26,7 +26,7 @@
  * o gesto de deslizar, o autoscroll e a troca de tom sem recarregar.
  */
 import { CSS, esc } from '../gerador-ts/html.ts';
-import type { Culto, EntradaCulto } from './cultos.ts';
+import { segmentoCulto, type Culto, type EntradaCulto } from './cultos.ts';
 import { TONS, CICLO, CLASSE_DE_ALTURA, passoDeTom } from './tons.ts';
 import { codificarOrdem } from './setlist.ts';
 import { CSS_UI, CSS_CIFRA, envelope, icone } from './ui.ts';
@@ -128,9 +128,9 @@ const CSS_EXEC = `
 }
 `;
 
-function linkExec(nome: string, entradas: readonly EntradaCulto[], i: number): string {
+function linkExec(culto: Culto, entradas: readonly EntradaCulto[], i: number): string {
   const q = new URLSearchParams({ ordem: codificarOrdem(entradas), i: String(i) });
-  return `/executar/${encodeURIComponent(nome)}?${q}`;
+  return `/executar/${segmentoCulto(culto)}?${q}`;
 }
 
 function comTom(entradas: readonly EntradaCulto[], i: number, tom: string): EntradaCulto[] {
@@ -147,13 +147,13 @@ export function paginaExecucao(
   const atual = entradas[i]!;
   const total = entradas.length;
   const conta = `${String(i + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
-  const voltar = `/culto/${encodeURIComponent(culto.nome)}?${new URLSearchParams({
+  const voltar = `/culto/${segmentoCulto(culto)}?${new URLSearchParams({
     ordem: codificarOrdem(entradas),
     atual: String(i),
   })}`;
 
-  const anterior = i > 0 ? linkExec(culto.nome, entradas, i - 1) : null;
-  const proxima = i < total - 1 ? linkExec(culto.nome, entradas, i + 1) : null;
+  const anterior = i > 0 ? linkExec(culto, entradas, i - 1) : null;
+  const proxima = i < total - 1 ? linkExec(culto, entradas, i + 1) : null;
 
   // ------------------------------------------------------------ setlist
   const itensSetlist = entradas
@@ -161,7 +161,7 @@ export function paginaExecucao(
       const marca = j < i ? '&check;' : j === i ? '&#9654;' : '&#9675;';
       const classe = j < i ? ' class=feita' : '';
       return (
-        `<li><a href="${esc(linkExec(culto.nome, entradas, j))}" aria-current="${j === i}"${classe}>` +
+        `<li><a href="${esc(linkExec(culto, entradas, j))}" aria-current="${j === i}"${classe}>` +
         `<span class=marca>${marca}</span>` +
         `<span class=num>${String(j + 1).padStart(2, '0')}</span>` +
         `<span class=nome><b>${esc(e.musica.titulo)}</b>` +
@@ -178,7 +178,7 @@ export function paginaExecucao(
   // sucessor do tom ANTIGO.
   const passo = (delta: number, rotulo: string, glifo: string) =>
     `<a class=passo data-tom-link data-passo="${delta}" ` +
-    `href="${esc(linkExec(culto.nome, comTom(entradas, i, passoDeTom(atual.tom, delta)), i))}" ` +
+    `href="${esc(linkExec(culto, comTom(entradas, i, passoDeTom(atual.tom, delta)), i))}" ` +
     `data-tom="${esc(passoDeTom(atual.tom, delta))}" data-slug="${esc(atual.slug)}" ` +
     `aria-label="${esc(rotulo)}">${glifo}</a>`;
 
@@ -188,7 +188,7 @@ export function paginaExecucao(
     const enar = o.enarmonico ? `<span class=enar>${esc(o.enarmonico)}</span>` : '';
     return (
       `<a${origem} data-tom-link data-tom="${esc(o.tom)}" data-slug="${esc(atual.slug)}" ` +
-      `href="${esc(linkExec(culto.nome, comTom(entradas, i, o.tom), i))}" ` +
+      `href="${esc(linkExec(culto, comTom(entradas, i, o.tom), i))}" ` +
       `aria-current="${eAtual}" title="${esc(o.tom === atual.musica.tom ? `${o.tom} — tom de origem` : o.tom)}">` +
       `<span>${esc(o.tom)}</span>${enar}</a>`
     );
@@ -204,7 +204,7 @@ export function paginaExecucao(
     '<button class=exec-quem type=button data-abre=gaveta-setlist ' +
     'aria-label="Abrir a setlist">' +
     `<b>${esc(atual.musica.titulo)}</b>` +
-    `<span>${papel}${esc(conta)} &middot; ${esc(culto.rotulo)}</span></button>` +
+    `<span>${papel}${esc(conta)} &middot; ${esc(culto.titulo || culto.rotulo)}</span></button>` +
     `<span class=pastilha id=pastilha-tom>${esc(atual.tom)}</span>` +
     '<button class=icone-btn type=button data-abre=gaveta-menu aria-label="Abrir os controles">' +
     '<svg class=icone viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.4"/>' +

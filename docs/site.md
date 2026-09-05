@@ -3,11 +3,12 @@
 `cifras.integrasolutions.com.br` — ferramenta interna da banda, atrás de senha.
 
 O conceito é um só: **preparar o culto no computador e executar o culto pelo
-celular.** A tela principal não é a biblioteca, é o culto.
+celular.** A tela de trabalho não é a biblioteca, é o culto — e a inicial é a
+agenda, que leva a um culto em um toque.
 
 ```
-Preparar culto → montar setlist → iniciar culto → executar pelo celular
-              → trocar música / tom → encerrar
+Abrir culto → montar setlist → iniciar culto → executar pelo celular
+           → trocar música / tom → encerrar
 ```
 
 Deploy em [`deploy/README.md`](../deploy/README.md).
@@ -21,7 +22,10 @@ nada.
 
 | Rota | O que faz |
 |---|---|
-| `GET /` | o culto mais recente (302 para `/culto/:nome`) |
+| `GET /` | **a agenda**: próximos cultos deste aparelho, abrir culto, último tocado |
+| `GET /culto/novo?data=…&periodo=…&nome=…&tema=…&musicas=…` | abre um culto: monta nome e setlist, redireciona |
+| `GET /culto/novo/:nome?titulo=…&tema=…&d=…` | painel de um culto aberto na tela |
+| `GET /executar/novo/:nome` | a execução desse culto |
 | `GET /culto/:nome` | painel do culto: setlist, tons, música atual |
 | `GET /culto/:nome?ordem=…&atual=2` | a setlist preparada, com o cursor |
 | `GET /executar/:nome?ordem=…&i=2` | **modo execução** — a tela do celular |
@@ -40,6 +44,7 @@ nada.
 | `site/repertorio.ts` | carrega o JSON — **o único ponto que muda** quando o acervo virar `.cifra` |
 | `site/cultos.ts` | o culto resolvido: setlist, rótulo derivado do nome do arquivo |
 | `site/setlist.ts` | a ordem em execução, codificada na URL |
+| `site/setlistTexto.ts` | a setlist digitada em texto, lida contra o repertório |
 | `site/ui.ts` | design system: tokens, casca de navegação, primitivas |
 | `site/paginas.ts` | as telas de **preparação** |
 | `site/execucao.ts` | a tela de **execução** |
@@ -116,6 +121,12 @@ atravesse. Sem banco, quem atravessa é o link:
 
 Daí três consequências, todas deliberadas:
 
+- **O tom troca na própria linha.** A pastilha abre um `<details>` com as 16
+  grafias ali mesmo — antes ela levava para a página da cifra, o que tirava
+  quem estava preparando de dentro do culto. As opções são `href`s: sem
+  JavaScript o menu abre e escolher navega igual; o script só acrescenta
+  fechar por Escape, por clique fora, e um menu aberto por vez. A cifra
+  continua a um clique, no rodapé do menu.
 - **Toda ação da setlist é link de verdade.** Reordenar, remover, adicionar,
   transpor e escolher a música atual são `href`s que já carregam o `?ordem=`
   resultante, calculado no servidor. Sem JavaScript o painel inteiro funciona
@@ -286,14 +297,109 @@ estabilizar (`docs/achados-importacao.md`), `site/repertorio.ts` passa a ler
 `musicas/*.cifra` pelo parser do núcleo e o JSON some. O resto do site fala
 `MusicaDados`, então a troca fica contida naquele módulo.
 
+## A agenda (`/`) e o culto que nasce na tela
+
+`/` era um redirecionamento para o culto mais recente do repertório. Agora é a
+**agenda**: os cultos marcados neste aparelho, o botão **Abrir culto** e o
+último culto tocado a um toque. A troca tem um motivo concreto — o culto
+aberto na tela o servidor não conhece, e sem a agenda ele não tinha caminho
+pelo menu.
+
+**Abrir culto** é um modal com quatro campos:
+
+| Campo | Vai para | Por quê |
+|---|---|---|
+| Data (obrigatória) | o **nome**: `14SET` | é a identidade do culto, na convenção do padrão visual |
+| Período (obrigatório) | o sufixo do nome: `14SET_Noite` | dois cultos no mesmo dia são dois cultos: sem o sufixo dividiriam nome, URL e rascunho. Oferece manhã, tarde e noite (`PERIODOS_OFERECIDOS`) |
+| Nome do culto | `?titulo=` | texto livre não pode entrar no nome: ele é URL e chave de rascunho |
+| Tema | `?tema=` | idem |
+| Setlist | `?ordem=` | uma música por linha, o tom no fim — vira a ordem de sempre |
+
+**A setlist é digitada de uma vez** (`site/setlistTexto.ts`), como a ordem do
+culto já é escrita no papel:
+
+```
+1. VITORIOSO ÉS - G
+2. EU VOU CONSTRUIR (C)
+   TEU TOQUE
+```
+
+Numeração, acento faltando, caixa, linha em branco entre blocos, tom entre
+parênteses ou depois de `-`, `–`, `|` ou `:` — tudo isso é lido. Sem tom
+escrito vale o tom de origem da música. Duas regras existem para não montar
+culto errado em silêncio:
+
+- **O tom só é separado do título se for tom de verdade.** `DEUS É DEUS -
+  PARTE 2` não vira "DEUS É DEUS" no tom "PARTE 2".
+- **Linha que não casa não é descartada** — nem prefixo ambíguo escolhe
+  sozinho. O formulário reabre com tudo que foi digitado e diz, linha por
+  linha, o que não entendeu. Setlist com uma música a menos, montada sem
+  avisar, só se descobre no culto.
+
+A data completa também viaja, em `?d=`, porque **a convenção do nome não tem
+ano** — e sem ano não há como dizer o que ainda está por vir. Ela só é aceita
+se concordar com o nome: `?d=` de outro dia (link editado à mão) é descartado
+e o rótulo volta a ser o da convenção, sem ano.
+
+**Abrir não escreve nada.** O formulário é um GET para `/culto/novo`, que monta
+o nome e redireciona para `/culto/novo/14SET_Noite?titulo=…&tema=…&d=…`. Dali
+em diante é o painel de sempre: a setlist viaja no `?ordem=`, e `titulo`,
+`tema` e `d` acompanham **todo** link do painel (`identidadeDoCulto`) — sem
+isso o primeiro clique na setlist apagaria o que o usuário acabou de escrever.
+O rascunho fica em `localStorage`, sob `cifras:culto:novo/<nome>`, separado da
+chave do culto do repertório de mesmo nome. `/executar/novo/:nome` é a mesma
+execução, e setlist vazia volta para a preparação.
+
+`<dialog>` não abre sem JavaScript — por isso o botão nasce `hidden` e o
+`<noscript>` traz o mesmo formulário na página. O painel inteiro funciona sem
+JS e abrir culto não podia ser a exceção.
+
+Como o servidor não sabe que cultos alguém abriu, as listas vêm de um índice
+local (`cifras:cultos-novos`), escrito pelo painel do culto novo: `/` mostra só
+o que é **de hoje em diante**, `/cultos` mostra todos. Entrada sem data (culto
+aberto antes deste campo existir) aparece na lista completa e nunca na agenda —
+chutar que é futuro seria inventar. É conveniência: o que atravessa continua
+sendo o link, e limpar os dados do navegador apaga a lista. A tela diz isso.
+
+### Salvar culto
+
+O painel do culto aberto na tela tem **Salvar culto**; o do repertório não —
+lá o culto já é dado versionado, e um botão prometeria escrita que não existe.
+
+**"Salvar" é neste aparelho, e a tela diz isso.** O botão carimba a setlist
+atual no índice local (`salvo` + `em`) e a faixa passa a dizer "salvo neste
+aparelho, com 5 músicas" ou "alterado depois de salvo"; a agenda mostra o
+mesmo em cada linha. Não há escrita no servidor — a regra do projeto é sem
+banco, e prometer nuvem num botão é mentira que só se descobre no aparelho do
+outro músico. Salvar de verdade, para a igreja inteira, é sprint 2 em diante e
+depende da decisão sobre onde o dado mora (`docs/rumo.md`).
+
+O rascunho continua sendo salvo sozinho a cada clique, para um recarregamento
+não custar o culto. O que o botão acrescenta é o carimbo: qual versão é a que
+o usuário considera pronta.
+
+Sair do culto com alteração posterior ao último salvamento abre um aviso —
+**Continuar aqui / Sair sem salvar / Salvar e sair**. Ele só vale para links
+que saem do culto: trocar tom, reordenar e adicionar são links para o próprio
+painel, e avisar a cada um seria alarme que se aprende a ignorar; iniciar o
+culto também passa, porque a setlist viaja no link. Fechar a aba não passa por
+link nenhum — aí quem avisa é o navegador, com o texto dele.
+
+O que está em jogo é **o carimbo, não a setlist**: o rascunho fica no aparelho
+de qualquer jeito, e é ele que a agenda abre. Por isso o aviso fala em "mudou
+depois do último salvamento" e não promete perda de culto.
+
+Diferenças em relação ao culto do repertório, todas deliberadas: não existe
+"setlist alterada" (não há ordem tocada para comparar), não existe "restaurar
+ordem do culto", e a última música pode ser removida — montar é errar e
+desfazer.
+
 ## Fora de escopo, de propósito
 
-**Montagem de culto na tela existe** desde o painel de operação — mas monta a
-partir dos cultos que já existem, e a montagem é rascunho no aparelho e no
-link. O que continua fora:
+**Montagem de culto na tela existe** desde o painel de operação, e agora o
+culto também pode **nascer** na tela — mas segue sendo rascunho no aparelho e
+no link. O que continua fora:
 
-- **Criar culto novo, com data.** O painel prepara sobre um culto existente. O
-  culto nasce em `gerador/repertorio/__init__.py`, porque é lá que ele é dado.
 - **Salvar a setlist alterada** como culto — exigiria escrita, e a fonte da
   verdade é arquivo versionado.
 - **Culto ao vivo compartilhado** entre celulares (o operador troca a música e
