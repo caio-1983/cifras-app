@@ -168,7 +168,7 @@ test('importarCifraCrua: rótulo de subtítulo desconhecido em forma "[...]" é 
 test('importarCifraCrua: cifra normalizada bate exatamente com o formato canônico (round-trip textual)', () => {
   const bruto = ['X', 'Tom: C', '', '[Verso 1]', '~C          G', 'sílaba tônica aqui'].join('\n');
   const texto = importarCifraCrua(bruto, 'teste.cifra');
-  assert.equal(texto, 'titulo: X\ntom: C\n---\n[Verso 1]\n~C          G\nsílaba tônica aqui\n');
+  assert.equal(texto, 'titulo: X\ntom: C\n---\n[Verso 1]\n~C          G\n>sílaba tônica aqui\n');
 });
 
 test('importarCifraCrua: caso real do Drive (SANTO ESPÍRITO) — BOM, \\r\\n, espaço no fim de linha e linha em branco duplicada, tudo limpo', () => {

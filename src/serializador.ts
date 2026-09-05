@@ -15,7 +15,8 @@ function serializarLinhaCorpo(linha: LinhaCorpo): string {
     case 'separador':
       return '';
     case 'letra':
-      return linha.texto;
+      // O ">" é sintaxe: o modelo guarda a letra limpa (ver linhas.ts).
+      return `>${linha.texto}`;
     case 'subtitulo':
       return linha.texto;
     case 'cifra':

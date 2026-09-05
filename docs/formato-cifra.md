@@ -36,7 +36,7 @@ Cabeçalho em YAML, `---`, corpo.
 | Subtítulo + cifra | `[...]` seguido de compassos na mesma linha | `[Intro] \| C \| Dm G/B \|` |
 | Cifra | Começa com `\|` ou `\|:` | `\| Am \| F \| C \| G \|` |
 | Cifra posicional | Começa com `~` | `~Am        Em7       F7+` |
-| Letra | Qualquer outra linha não vazia | `Ele é o Grande Eu Sou` |
+| Letra | Começa com `>` | `>Ele é o Grande Eu Sou` |
 | Separador | Linha vazia | separa blocos |
 
 No acervo real, a maioria das músicas é posicional do início ao fim — algumas
@@ -49,8 +49,39 @@ sinal de um rótulo de seção que ainda não foi convertido para `[...]`. O
 parser recusa esse caso em vez de deixá-lo virar letra da música por engano
 (ver "Anotação de execução" abaixo).
 
+Linha sem nenhum desses marcadores é **erro**, não letra. Antes a letra era o
+"qualquer outra coisa" da classificação, e por isso um rótulo de seção não
+convertido ou uma nota solta do transcritor viravam texto cantado em silêncio.
+
 Continuação de cifra (segunda linha de uma intro longa) é uma linha de cifra
 comum, indentada.
+
+## Letra marcada com `>` — arranjo e letra separados
+
+Toda linha cantada começa com `>`, na coluna 0, como `~` e `|`:
+
+```
+~Am        Em7       F7+
+>Ele é o Grande Eu Sou
+```
+
+Dois motivos:
+
+1. **Separar arranjo de letra.** O arranjo é o arquivo sem as linhas `>`; a
+   letra é só elas. Extrair vira um filtro (`src/arranjoLetra.ts`), sem
+   remontar nada — e o arquivo continua um só, com as duas coisas
+   intercaladas, que é o que preserva o acorde sobre a sílaba e a ordem das
+   partes. Guardar em dois blocos separados perderia a intercalação: uma
+   seção com 3 linhas de cifra e 5 de letra não se remonta por contagem.
+   Isso permite compartilhar arranjo — que é fato musical — sem redistribuir
+   obra de terceiro (ver `rumo.md`).
+2. **A coluna passa a bater na tela.** Sem o prefixo, `~Am` põe o `A` na
+   coluna 1 e a letra começa na 0: o acorde soa sobre a sílaba certa (o
+   parser desconta o `~`), mas aparece um caractere à direita para quem
+   confere à mão. Com os dois prefixos, o que se lê é o que soa.
+
+O `>` é sintaxe, não conteúdo: o modelo guarda a letra limpa e o serializador
+repõe o prefixo.
 
 ## Compassos
 

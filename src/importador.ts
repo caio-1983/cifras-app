@@ -120,6 +120,24 @@ function sobreORegiaoDeCifra(linha: string, transformar: (trecho: string) => str
 }
 
 /**
+ * Marca com ">" toda linha de letra — o que sobra depois de reconhecer
+ * separador, subtítulo (`[`), posicional (`~`) e compasso (`|`).
+ *
+ * Roda por ÚLTIMO, depois de a estrutura estar decidida: antes de
+ * `marcarLinhasPosicionaisCruas` uma linha de acorde crua ainda não tem `~`
+ * e seria marcada como letra, o que a transformaria em texto cantado e
+ * destruiria a cifra em silêncio.
+ */
+function marcarLinhasDeLetra(linhas: string[]): string[] {
+  return linhas.map((linha) => {
+    const trimada = linha.trim();
+    if (trimada === '') return linha;
+    if (/^[[~|>]/.test(trimada)) return linha;
+    return `>${trimada}`;
+  });
+}
+
+/**
  * Recusa acorde grudado em outro (`C#Bm7` = `C#`+`Bm7`, `EGF#` =
  * `E`+`G`+`F#`) — achado real em `EU E MINHA CASA`, onde o documento traz
  * `| A | B |C#Bm7 | EGF# |`.
@@ -241,7 +259,8 @@ export function importarCifraCrua(
   const marcado = marcarLinhasPosicionaisCruas(materializado);
   const espacado = marcado.map(normalizarEspacamentoSeForCifra);
   const anotado = espacado.map(marcarAnotacoesSeForCifra);
-  const corpoFinal = colapsarLinhasEmBrancoConsecutivas(anotado);
+  const comLetraMarcada = marcarLinhasDeLetra(anotado);
+  const corpoFinal = colapsarLinhasEmBrancoConsecutivas(comLetraMarcada);
 
   const texto = [...cabecalho, '---', ...corpoFinal].join('\n') + '\n';
   recusarAcordesGrudados(parseMusica(texto, nomeArquivo), nomeArquivo);

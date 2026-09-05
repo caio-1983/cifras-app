@@ -27,7 +27,7 @@ test('serializarMusica remonta cabeçalho, separador --- e corpo', () => {
       { tipo: 'subtitulo', texto: '[Refrão] 2x' },
     ],
   };
-  const esperado = ['titulo: X', 'tom: D', '---', '| C/E |', 'a letra', '', '[Refrão] 2x'].join('\n');
+  const esperado = ['titulo: X', 'tom: D', '---', '| C/E |', '>a letra', '', '[Refrão] 2x'].join('\n');
   assert.equal(serializarMusica(musica), esperado);
 });
 

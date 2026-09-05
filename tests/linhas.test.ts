@@ -15,8 +15,8 @@ test('subtítulo com contagem de repetição (não é cifra)', () => {
   assert.deepEqual(classificarLinha('[Refrão] 2x'), { tipo: 'subtitulo', texto: '[Refrão] 2x' });
 });
 
-test('letra é qualquer outra linha não vazia', () => {
-  assert.deepEqual(classificarLinha('Ele é o Grande Eu Sou'), { tipo: 'letra', texto: 'Ele é o Grande Eu Sou' });
+test('letra é a linha marcada com ">" (antes era "qualquer outra linha não vazia")', () => {
+  assert.deepEqual(classificarLinha('>Ele é o Grande Eu Sou'), { tipo: 'letra', texto: 'Ele é o Grande Eu Sou' });
 });
 
 test('cifra pura, sem subtítulo', () => {
@@ -100,4 +100,35 @@ test('erro de rótulo entre chaves cita arquivo e linha quando o contexto é pas
     () => classificarLinha('{estrofe_1}', { numeroLinha: 12, nomeArquivo: 'so-tu-es-santo.cifra' }),
     /so-tu-es-santo\.cifra:12/,
   );
+});
+
+test('classificarLinha: linha de letra é marcada com ">" e o prefixo não entra no texto', () => {
+  const linha = classificarLinha('>Ele é o Grande Eu Sou');
+  assert.equal(linha.tipo, 'letra');
+  assert.equal((linha as { texto: string }).texto, 'Ele é o Grande Eu Sou');
+});
+
+test('classificarLinha: o ">" fica na coluna 0, igual ao "~" — é o que faz o acorde bater com a sílaba na tela', () => {
+  // Sem prefixo na letra, "~Am" põe o A na coluna 1 e "Sobre" o S na
+  // coluna 0: o acorde SOA certo (o parser compensa o ~) mas aparece um
+  // caractere à direita para quem confere à mão.
+  const cifra = classificarLinha('~Am        Em7');
+  const letra = classificarLinha('>Ele é o Grande');
+  assert.equal(cifra.tipo, 'posicional');
+  assert.equal((letra as { texto: string }).texto, 'Ele é o Grande');
+});
+
+test('classificarLinha: texto sem marcador nenhum é ERRO, não letra', () => {
+  // O ganho da mudança: letra deixa de ser o "qualquer outra coisa" da
+  // classificação. Um rótulo de seção não convertido, uma nota solta do
+  // transcritor ou uma linha de cifra mal marcada param de virar letra da
+  // música em silêncio.
+  assert.throws(
+    () => classificarLinha('Ele é o Grande Eu Sou', { nomeArquivo: 'x.cifra', numeroLinha: 7 }),
+    /sem marcador.*x\.cifra:7/s,
+  );
+});
+
+test('classificarLinha: letra que começa com ">" no conteúdo continua possível (o prefixo é só o primeiro)', () => {
+  assert.equal((classificarLinha('>> vem, Senhor') as { texto: string }).texto, '> vem, Senhor');
 });

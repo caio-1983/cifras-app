@@ -227,7 +227,7 @@ test('ida e volta devolve a grafia original', () => {
 // para o veredito completo — este teste documenta o comportamento atual do
 // núcleo, não porta `limpar_letra` (não há ponto de transposição para portar).
 test('melisma: núcleo preserva o sublinhado em linha de letra — não é responsabilidade da transposição', () => {
-  const texto = 'titulo: T\ntom: C\n---\ncora_ção\n';
+  const texto = 'titulo: T\ntom: C\n---\n>cora_ção\n';
   const musica = transporMusicaTexto(texto, 'C');
   assert.ok(musica.includes('cora_ção'));
 });

@@ -79,5 +79,27 @@ export function classificarLinha(linha: string, contexto?: ContextoLinha): Linha
     return { tipo: 'cifra', itens: tokenizarTrecho(linha, 0) };
   }
 
-  return { tipo: 'letra', texto: linha };
+  // Letra é marcada com ">", como cifra é com "|" e posicional com "~".
+  //
+  // Dois motivos, nesta ordem. (1) SEPARAR ARRANJO DE LETRA: com a marca, o
+  // arranjo é o arquivo sem estas linhas e a letra é só elas — extrair vira
+  // um filtro, sem remontar nada e sem perder a intercalação nem a coluna
+  // (ver `arranjoLetra.ts` e `docs/rumo.md`). (2) O ">" fica na coluna 0
+  // como o "~", então o acorde passa a aparecer exatamente sobre a sílaba
+  // também na tela de quem confere à mão — antes o "~" deslocava a leitura
+  // em um caractere.
+  //
+  // O prefixo é sintaxe, não conteúdo: `texto` guarda a letra limpa, e o
+  // serializador repõe o ">".
+  if (primeiroChar === '>') {
+    return { tipo: 'letra', texto: linha.slice(primeiraNaoEspaco + 1) };
+  }
+
+  // Sem marcador nenhum é erro. Antes, letra era o "qualquer outra coisa"
+  // da classificação, e por isso um rótulo de seção não convertido ou uma
+  // nota solta do transcritor viravam letra da música em silêncio — mesma
+  // família de falha que a guarda de linha só-com-chaves acima pega.
+  throw new Error(
+    `linha sem marcador${localizacao(contexto)}: "${trimmed}" — letra começa com ">", cifra com "|", posicional com "~", subtítulo com "[".`,
+  );
 }
