@@ -9,8 +9,7 @@
  *   GET /culto/novo/:nome     painel de um culto criado na tela
  *   GET /executar/:nome       MODO EXECUÇÃO — a tela do celular no culto
  *   GET /executar/novo/:nome  o mesmo, para o culto criado na tela
- *   GET /musicas              o repertório, com busca
- *   GET /buscar               a mesma busca, com o campo em foco
+ *   GET /musicas              a biblioteca: o repertório, com busca
  *   GET /cultos               cultos anteriores
  *   GET /musica/:slug         cifra no tom de origem
  *   GET /musica/:slug?tom=G   cifra transposta
@@ -269,12 +268,7 @@ export function criarServidor(config: Config) {
 
   app.get('/musicas', async (_req, resposta) => {
     resposta.type('text/html; charset=utf-8');
-    return paginaBiblioteca(rep, { foco: false });
-  });
-
-  app.get('/buscar', async (_req, resposta) => {
-    resposta.type('text/html; charset=utf-8');
-    return paginaBiblioteca(rep, { foco: true });
+    return paginaBiblioteca(rep);
   });
 
   app.get('/cultos', async (_req, resposta) => {

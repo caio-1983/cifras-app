@@ -21,7 +21,7 @@ import { carregarRepertorio } from '../site/repertorio.ts';
 import { cultoNovo, lerNomeDeCulto, montarCultos, nomeDeCultoNovo } from '../site/cultos.ts';
 import { codificarOrdem, decodificarOrdem, indiceValido } from '../site/setlist.ts';
 import { TONS, CICLO, CLASSE_DE_ALTURA, passoDeTom } from '../site/tons.ts';
-import { escrever } from '../gerador-ts/html.ts';
+import { esc, escrever } from '../gerador-ts/html.ts';
 
 process.env.CIFRAS_LOG = 'silent';
 
@@ -427,22 +427,33 @@ test('culto inexistente devolve 404 nas duas telas, não 500', async () => {
 });
 
 // ------------------------------------------------------------ biblioteca
-test('a busca oferece filtro por tom com dado que existe, e não inventa tema', async () => {
+test('a biblioteca busca por nome, tema e cantor, cada um no seu campo', async () => {
   await comApp(async (app) => {
-    const r = await app.inject({ method: 'GET', url: '/buscar' });
+    const r = await app.inject({ method: 'GET', url: '/musicas' });
     assert.equal(r.statusCode, 200);
-    // Cada item carrega o que a busca filtra: título, artista e tom de origem.
+    // Cada item carrega, separado, o que cada campo filtra.
     for (const m of rep.todas) {
       assert.ok(r.body.includes(`data-tom-origem="${m.tom}"`), `faltou o tom de ${m.slug}`);
-      assert.ok(r.body.includes(m.titulo), `faltou ${m.titulo}`);
+      assert.ok(r.body.includes(`data-titulo="${esc(m.titulo)}"`), `faltou o título de ${m.slug}`);
+      assert.ok(r.body.includes(`data-artista="${esc(m.artista)}"`), `faltou o artista de ${m.slug}`);
+    }
+    for (const chave of ['titulo', 'tema', 'artista']) {
+      assert.ok(r.body.includes(`data-campo="${chave}"`), `faltou o campo de busca por ${chave}`);
     }
     const tons = [...new Set(rep.todas.map((m) => m.tom))];
     for (const t of tons) {
       assert.ok(r.body.includes(`data-tom-filtro="${t}"`), `faltou o chip de ${t}`);
     }
-    // O repertório não tem campo de tema — a tela diz isso em vez de exibir
-    // rótulo chutado.
-    assert.ok(r.body.includes('ainda não tem o campo de tema'));
+    // O tema sai do `momento`, e a tela diz quantas músicas o têm em vez de
+    // fingir que o filtro cobre o acervo inteiro.
+    assert.ok(r.body.includes('momento'));
+  });
+});
+
+test('/buscar não existe mais: a busca é a própria biblioteca', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: '/buscar' });
+    assert.equal(r.statusCode, 404);
   });
 });
 

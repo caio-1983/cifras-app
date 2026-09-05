@@ -115,7 +115,6 @@ test('toda página traz noindex/nofollow, na meta e no cabeçalho', async () => 
   await comApp(async (app) => {
     const paginas = [
       '/musicas',
-      '/buscar',
       '/cultos',
       '/configuracoes',
       '/perfil',

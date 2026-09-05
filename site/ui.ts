@@ -282,21 +282,22 @@ export function icone(nome: keyof typeof ICONES): string {
 }
 
 /**
- * A navegação inteira do painel — quatro destinos, e nada mais.
+ * A navegação inteira do painel — três destinos, e nada mais.
  *
  * Transposição, escala de fonte, filtro por tom e troca de música moram
  * **dentro** da tela que precisa delas. Menu não é catálogo de funções: quem
- * está no palco procura a música, não o item de menu.
+ * está no palco procura a música, não o item de menu. Buscar, pelo mesmo
+ * motivo, não é destino: é o topo de **Músicas**, que é onde o acervo está.
  */
 export const NAV: { grupo: string; itens: ItemNav[] }[] = [
   {
     grupo: 'Operação',
-    itens: [
-      { href: '/', rotulo: 'Culto', icone: 'culto', aba: true },
-      { href: '/musicas', rotulo: 'Músicas', icone: 'musicas', aba: true },
-    ],
+    itens: [{ href: '/', rotulo: 'Culto', icone: 'culto', aba: true }],
   },
-  { grupo: 'Biblioteca', itens: [{ href: '/buscar', rotulo: 'Buscar', icone: 'buscar', aba: true }] },
+  {
+    grupo: 'Biblioteca',
+    itens: [{ href: '/musicas', rotulo: 'Músicas', icone: 'musicas', aba: true }],
+  },
   {
     grupo: 'Histórico',
     itens: [{ href: '/cultos', rotulo: 'Cultos anteriores', curto: 'Cultos', icone: 'historico', aba: true }],

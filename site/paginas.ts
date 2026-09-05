@@ -193,6 +193,11 @@ const CSS_PREPARO = `
   /* Campo, filtros e lista vivem no mesmo cartão: procurar é uma ação só. */
   .busca-topo{display:grid;gap:12px;padding:16px;
       border-bottom:1px solid var(--line)}
+  /* Três campos lado a lado no computador, empilhados no celular. */
+  .campos-busca{display:grid;gap:10px;
+      grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+  .campo-busca{display:grid;gap:5px;font-size:12px;font-weight:600;
+      color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
   .lista{list-style:none;margin:0;padding:0}
   .lista li{border-bottom:1px solid var(--line)}
   .lista li:last-child{border-bottom:0}
@@ -338,22 +343,38 @@ const SCRIPT_MENU_TOM = `<script>
 const SCRIPT_FILTRO = `<script>
 (function(){
   ${JS_LIMPAR}
+  // Os campos são agrupados POR LISTA antes de ligar o evento: a biblioteca
+  // tem três (nome, tema, cantor) e eles têm que filtrar juntos. Um "aplicar"
+  // por campo faria o último a rodar desfazer o que os outros esconderam.
+  var porLista={};
   document.querySelectorAll('input[data-filtro]').forEach(function(campo){
-    var lista=document.getElementById(campo.dataset.filtro);
+    (porLista[campo.dataset.filtro]=porLista[campo.dataset.filtro]||[]).push(campo);
+  });
+  Object.keys(porLista).forEach(function(id){
+    var lista=document.getElementById(id);
     if(!lista)return;
-    var vazio=document.querySelector('[data-vazio="'+campo.dataset.filtro+'"]');
-    var conta=document.querySelector('[data-conta="'+campo.dataset.filtro+'"]');
+    var campos=porLista[id];
+    var vazio=document.querySelector('[data-vazio="'+id+'"]');
+    var conta=document.querySelector('[data-conta="'+id+'"]');
     function aplicar(){
-      var q=limpar(campo.value.trim()),tom=lista.dataset.tom||'',n=0;
+      var tom=lista.dataset.tom||'',n=0;
+      // Campo sem \`data-campo\` busca no índice geral (\`data-busca\`), que é o
+      // que a lista de escolher música do culto usa.
+      var termos=[];
+      campos.forEach(function(c){
+        var q=limpar(c.value.trim());
+        if(q)termos.push({chave:c.dataset.campo||'busca',q:q});
+      });
       lista.querySelectorAll('li').forEach(function(li){
-        var bate=(!q||limpar(li.dataset.busca).indexOf(q)>=0)
-              && (!tom||li.dataset.tomOrigem===tom);
+        var bate=(!tom||li.dataset.tomOrigem===tom)&&termos.every(function(t){
+          return limpar(li.dataset[t.chave]||'').indexOf(t.q)>=0;
+        });
         li.hidden=!bate; if(bate)n++;
       });
       if(vazio)vazio.hidden=n>0;
       if(conta)conta.textContent=n;
     }
-    campo.addEventListener('input',aplicar);
+    campos.forEach(function(c){c.addEventListener('input',aplicar)});
     lista.addEventListener('filtrar',aplicar);
     aplicar();
   });
@@ -855,12 +876,27 @@ function scriptCulto(culto: Culto, canonica: string): string {
 
 // ---------------------------------------------------------- biblioteca
 
-/** Lista e busca. `foco` distingue "Músicas" (navegar) de "Buscar" (procurar). */
-export function paginaBiblioteca(rep: Repertorio, opcoes: { foco: boolean }): string {
+/**
+ * A biblioteca: o acervo inteiro, com busca por **nome, tema e cantor/banda**.
+ *
+ * Os três campos filtram **juntos** (E, não OU): quem digita "adoração" no tema
+ * e "Fernandinho" no cantor quer a interseção. Cada um lê o seu próprio
+ * `data-` do item, e não um índice único concatenado, senão "Fernandinho" no
+ * campo de nome acharia a música pelo artista.
+ *
+ * "Tema" é o campo `momento` do `.cifra` — o vocabulário que o acervo já tem
+ * (adoracao, celebracao). Poucas músicas o trazem hoje, e a tela diz isso em
+ * vez de fingir que o filtro cobre as 343.
+ */
+export function paginaBiblioteca(rep: Repertorio): string {
+  const comTema = rep.todas.filter((m) => m.momento).length;
+
   const itens = rep.todas
     .map(
       (m) =>
-        `<li data-busca="${esc(`${m.titulo} ${m.artista}`.toLowerCase())}" data-tom-origem="${esc(m.tom)}">` +
+        `<li data-titulo="${esc(m.titulo)}" data-artista="${esc(m.artista)}" ` +
+        `data-tema="${esc(m.momento ?? '')}" ` +
+        `data-busca="${esc(`${m.titulo} ${m.artista}`)}" data-tom-origem="${esc(m.tom)}">` +
         `<a href="/musica/${esc(m.slug)}">` +
         `<span class=nome><b>${esc(m.titulo)}</b>` +
         `<span>${esc(m.artista)}${m.momento ? ` · ${esc(m.momento)}` : ''}</span></span>` +
@@ -868,29 +904,37 @@ export function paginaBiblioteca(rep: Repertorio, opcoes: { foco: boolean }): st
     )
     .join('');
 
-  // Os chips filtram por TOM DE ORIGEM, que é dado que existe. Filtro por
-  // tema (Adoração, Louvor, Fé…) espera o campo: ver o comentário abaixo.
+  // Os chips filtram por TOM DE ORIGEM, que é dado que existe em toda música.
   const tonsUsados = [...new Set(rep.todas.map((m) => m.tom))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const chips = tonsUsados
     .map((t) => `<button class=chip type=button data-tom-filtro="${esc(t)}" aria-pressed=false>${esc(t)}</button>`)
     .join('');
 
+  const campo = (chave: string, rotulo: string, dica: string) =>
+    `<label class=campo-busca>${esc(rotulo)}` +
+    `<input class=campo type=search data-filtro=lista data-campo="${esc(chave)}" autocomplete=off ` +
+    `placeholder="${esc(dica)}" aria-label="${esc(rotulo)}"></label>`;
+
   const miolo =
-    `<h1 class=secao-tit>${opcoes.foco ? 'Buscar' : 'Músicas'}<em>${rep.todas.length} no repertório</em></h1>` +
+    `<h1 class=secao-tit>Músicas<em>${rep.todas.length} no repertório</em></h1>` +
     '<div class=cartao><div class=busca-topo>' +
-    `<input class=campo type=search data-filtro=lista autocomplete=off${opcoes.foco ? ' autofocus' : ''} ` +
-    'placeholder="Buscar música ou artista" aria-label="Buscar música ou artista">' +
+    '<div class=campos-busca>' +
+    campo('titulo', 'Nome da música', 'Ex.: O Grande Eu Sou') +
+    campo('tema', 'Tema', 'Ex.: adoracao') +
+    campo('artista', 'Cantor / banda', 'Ex.: Gabriela Rocha') +
+    '</div>' +
     `<nav class="fila" data-chips=lista aria-label="Filtrar por tom">${chips}</nav>` +
     '</div>' +
     `<ul class=lista id=lista>${itens}</ul>` +
-    '<p class=vazio data-vazio=lista hidden style="padding:28px 16px">Nada com esse nome nesse filtro.</p>' +
+    '<p class=vazio data-vazio=lista hidden style="padding:28px 16px">Nada com esses filtros.</p>' +
     '</div>' +
     `<p class=contagem><span data-conta=lista>${rep.todas.length}</span> de ${rep.todas.length} músicas. ` +
-    'O filtro é por tom de origem — o repertório ainda não tem o campo de tema.</p>';
+    `Os três campos filtram juntos. O tema vem do campo <code>momento</code> do <code>.cifra</code>, ` +
+    `que ${comTema} das ${rep.todas.length} músicas ainda tem preenchido.</p>`;
 
   return paginaPainel({
-    titulo: opcoes.foco ? 'Buscar' : 'Músicas',
-    ativo: opcoes.foco ? '/buscar' : '/musicas',
+    titulo: 'Músicas',
+    ativo: '/musicas',
     css: CSS_PAINEL,
     miolo,
     scripts: SCRIPT_FILTRO,

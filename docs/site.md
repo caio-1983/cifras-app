@@ -29,8 +29,7 @@ nada.
 | `GET /culto/:nome` | painel do culto: setlist, tons, música atual |
 | `GET /culto/:nome?ordem=…&atual=2` | a setlist preparada, com o cursor |
 | `GET /executar/:nome?ordem=…&i=2` | **modo execução** — a tela do celular |
-| `GET /musicas` | o repertório, com busca |
-| `GET /buscar` | a mesma busca, com o campo em foco |
+| `GET /musicas` | a biblioteca: o repertório, com busca por nome, tema e cantor |
 | `GET /cultos` | cultos anteriores |
 | `GET /musica/:slug?tom=G` | cifra solta, transposta |
 | `GET /musica/:slug?tom=G&fragmento=1` | só o miolo (troca de tom sem recarregar) |
