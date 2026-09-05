@@ -49,7 +49,16 @@
       "Bash(node --test tests/anotacaoExecucao.test.ts)",
       "Bash(grep -oE '\"[^\"]*\"$')",
       "Bash(node --test tests/sinonimosSubtitulo.test.ts)",
-      "Bash(node --test tests/sinonimosSubtitulo.test.ts tests/materializacaoSecoes.test.ts)"
+      "Bash(node --test tests/sinonimosSubtitulo.test.ts tests/materializacaoSecoes.test.ts)",
+      "Bash(node --test tests/linhas.test.ts)",
+      "Bash(node --test tests/arranjoLetra.test.ts)",
+      "Bash(python -c \"import PIL; print\\('PIL', PIL.__version__\\)\")",
+      "Bash(grep -n \"object-fit:contain$\\\\|selo-topo\\\\|marca.png\" site/ui.ts)",
+      "Bash(curl -s -o /tmp/m.png -w \"status %{http_code}  %{size_download} bytes  %{content_type}\\\\n\" http://127.0.0.1:3111/estatico/marca.png)",
+      "Bash(curl -s http://127.0.0.1:3111/musicas)",
+      "Bash(grep -o 'class=marca.\\\\{0,150\\\\}')",
+      "Bash(kill %1)",
+      "Bash(python scripts/gerar_marca.py)"
     ],
     "additionalDirectories": [
       "\\tmp"
