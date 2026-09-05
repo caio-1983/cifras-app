@@ -5,6 +5,7 @@ import { marcarLinhasPosicionaisCruas } from './deteccaoPosicionalCrua.ts';
 import { materializarSecoesReferenciadas } from './materializacaoSecoes.ts';
 import { marcarAnotacoesDeExecucao } from './anotacaoExecucao.ts';
 import { parseMusica } from './index.ts';
+import { parseTom } from './tom.ts';
 import type { Musica } from './tipos.ts';
 
 // Uma linha crua é candidata a rótulo de subtítulo quando começa com "["
@@ -232,6 +233,44 @@ function recusarAcordesGrudados(musica: Musica, nomeArquivo?: string): void {
  * de não fechar vocabulário/heurística com amostra pequena, ver
  * `docs/plano-camada-formato.md`).
  */
+/**
+ * Garante que o cabeçalho sai com um `tom:` que o transpositor consegue
+ * ler. Um `tom:` presente mas ilegível (`Tom:` vazio, achado real em
+ * `TU ÉS FIEL`) não conta como declarado: antes ele bloqueava o tom vindo
+ * do título e o arquivo importava limpo para quebrar depois, na primeira
+ * transposição — que é o único lugar onde o campo é usado.
+ *
+ * Sem tom nenhum utilizável, falha aqui. O acervo tem 400 arquivos: o que
+ * não pode acontecer é um deles entrar quebrado sem ninguém ver.
+ */
+function comTomUtilizavel(cabecalho: string[], tomDeFora: string | undefined, nomeArquivo?: string): string[] {
+  const indice = cabecalho.findIndex((linha) => linha.startsWith('tom:'));
+  const declarado = indice === -1 ? undefined : cabecalho[indice]!.slice('tom:'.length).trim();
+
+  if (declarado !== undefined && declarado !== '') {
+    try {
+      parseTom(declarado);
+      return cabecalho;
+    } catch {
+      // cai para o tom de fora, e se não houver, falha logo abaixo
+    }
+  }
+
+  if (tomDeFora !== undefined && tomDeFora.trim() !== '') {
+    const linha = `tom: ${tomDeFora.trim()}`;
+    return indice === -1
+      ? [...cabecalho, linha]
+      : [...cabecalho.slice(0, indice), linha, ...cabecalho.slice(indice + 1)];
+  }
+
+  const onde = nomeArquivo ? ` (${nomeArquivo})` : '';
+  throw new Error(
+    declarado === undefined
+      ? `cabeçalho sem campo obrigatório "tom"${onde}`
+      : `tom ilegível no cabeçalho${onde}: "${declarado}" — e o título não traz alternativa.`,
+  );
+}
+
 export interface OpcoesImportacao {
   /**
    * Tom a usar QUANDO o documento não traz `Tom:` nenhum — 18 dos 421
@@ -260,9 +299,7 @@ export function importarCifraCrua(
   if (linhasCruas[linhasCruas.length - 1] === '') linhasCruas.pop();
 
   const { cabecalho: cabecalhoCru, resto } = normalizarCabecalhoBruto(linhasCruas);
-  const temTom = cabecalhoCru.some((linha) => linha.startsWith('tom:'));
-  const cabecalho =
-    temTom || opcoes.tom === undefined ? cabecalhoCru : [...cabecalhoCru, `tom: ${opcoes.tom}`];
+  const cabecalho = comTomUtilizavel(cabecalhoCru, opcoes.tom, nomeArquivo);
 
   const semTrailing = resto.map(semEspacoNoFinal);
   const semTabs = semTrailing.map((linha) => expandirTabs(linha));

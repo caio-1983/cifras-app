@@ -98,3 +98,19 @@ test('normalizarCabecalhoBruto: tessitura entre parênteses sobrevive à branca 
   const { cabecalho } = normalizarCabecalhoBruto(['RENOVA-ME', '', 'Tom: Eb (masculino)', '', 'corpo']);
   assert.deepEqual(cabecalho, ['titulo: RENOVA-ME', 'tom: Eb', 'tessitura: masculino']);
 });
+
+test('normalizarCabecalhoBruto: tessitura SEM parênteses também sai do tom', () => {
+  // Achado real: `Atos 2` traz "Tom: C tenor" no próprio documento. Sem
+  // separar, o campo tom fica "C tenor" — que importa limpo e explode na
+  // primeira transposição, que é o único lugar onde ele é usado.
+  const { cabecalho } = normalizarCabecalhoBruto(['ATOS 2', 'Tom: C tenor', '', 'corpo']);
+  assert.deepEqual(cabecalho, ['titulo: ATOS 2', 'tom: C', 'tessitura: tenor']);
+});
+
+test('normalizarCabecalhoBruto: só separa quando o que vem antes É um tom', () => {
+  // "Tom: sol maior" não vira `tom: sol` + `tessitura: maior`: "sol" não
+  // parseia como tom, então nada é adivinhado e o valor fica como veio,
+  // para a validação reclamar dele por inteiro.
+  const { cabecalho } = normalizarCabecalhoBruto(['X', 'Tom: sol maior', '', 'corpo']);
+  assert.deepEqual(cabecalho, ['titulo: X', 'tom: sol maior']);
+});

@@ -1,3 +1,15 @@
+import { parseTom } from './tom.ts';
+
+/** `C`, `Ab`, `F#m` sim; `sol`, `tenor`, `` não. */
+function ehTom(texto: string): boolean {
+  try {
+    parseTom(texto);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const RE_CHAVE_VALOR = /^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ ]*)\s*:\s*(.*)$/;
 const RE_QUALIFICADOR_FINAL = /\s*\(([^()]*)\)\s*$/;
 // Só separa título de artista quando o traço tem espaço dos dois lados —
@@ -112,6 +124,18 @@ export function normalizarCabecalhoBruto(linhasCruas: string[]): CabecalhoBrutoN
         valor = valor.slice(0, qualificador.index).trim();
         campos.push({ chave: 'tom', valor });
         campos.push({ chave: 'tessitura', valor: qualificador[1]!.trim() });
+        i++;
+        continue;
+      }
+      // Sem parênteses também acontece: `Atos 2` traz "Tom: C tenor". Quem
+      // autoriza o corte é o parser de tom, não uma lista de palavras — só
+      // separa se o que vem antes do espaço for um tom de verdade. Assim
+      // "sol maior" fica inteiro e a validação reclama dele, em vez de
+      // virar `tom: sol` silenciosamente.
+      const solto = /^(\S+)\s+(.+)$/.exec(valor);
+      if (solto && ehTom(solto[1]!)) {
+        campos.push({ chave: 'tom', valor: solto[1]! });
+        campos.push({ chave: 'tessitura', valor: solto[2]!.trim() });
         i++;
         continue;
       }

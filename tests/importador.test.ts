@@ -339,3 +339,17 @@ test('importar: rótulo de seção grudado na cifra sai como subtítulo, não co
   const texto = importarCifraCrua(cru, 'cancao.txt');
   assert.ok(texto.includes('[Intro] |: F | C :|'), texto);
 });
+
+test('importar: "Tom:" vazio não vale como tom declarado — o tom do título entra no lugar', () => {
+  // `TU ÉS FIEL` traz a linha "Tom:" sem valor. Antes ela contava como tom
+  // declarado, bloqueava o tom vindo do título e produzia um arquivo que
+  // importava limpo e quebrava na primeira transposição.
+  const cru = ['TU ÉS FIEL', 'Tom:', '', '[Intro] | B | E |'].join('\n');
+  const texto = importarCifraCrua(cru, 'tu-es-fiel.txt', { tom: 'B' });
+  assert.equal(obterCampo(parseMusica(texto, 'x').cabecalho, 'tom'), 'B');
+});
+
+test('importar: tom ilegível e sem alternativa é ERRO, não arquivo quebrado', () => {
+  const cru = ['TU ÉS FIEL', 'Tom:', '', '[Intro] | B | E |'].join('\n');
+  assert.throws(() => importarCifraCrua(cru, 'tu-es-fiel.txt'), /tom/i);
+});

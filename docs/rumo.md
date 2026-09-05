@@ -127,23 +127,55 @@ Ordem:
 música; o entregável do sprint é *músicas únicas importadas*. A tessitura que
 vinha no nome do arquivo (`_C_masculino`) é preservada no campo `tessitura`.
 
-**Estado em 2026-09-04, fim do dia:** os 421 documentos do acervo estão em
-`bruto/txt/` (via `docs/scripts/exportar-acervo-completo.gs.js`), sem nenhuma
-corrupção, e **377 deles (90%) importam limpo**. As 44 falhas restantes são,
-na maioria, curadoria humana: token solto na linha de cifra (erro de digitação
-do documento), 7 arquivos sem tom nem no corpo nem no título, e acorde grudado.
-Medir com `node scripts/medir-importacao.mjs` — ele não grava nada.
+**Estado em 2026-09-05: o acervo está gravado.** `musicas/` tem **341
+`.cifra`** — os 7 curados à mão, preservados, mais 334 vindos do Drive. Gravar
+de novo não muda nada: o lote é idempotente.
 
-Nenhum `.cifra` foi gravado em `musicas/` ainda: a separação arranjo/letra é o
-portão, e vem antes.
+Como se chegou lá, e o que o número esconde:
+
+- Os 421 documentos estão em `bruto/txt/` (via
+  `docs/scripts/exportar-acervo-completo.gs.js`), sem nenhuma corrupção.
+- A taxa de importação **caiu** de 90% para 86% (362/421) de propósito. Ao
+  medir para deduplicar, apareceu erro silencioso: 110 linhas em 62 arquivos
+  entravam como **letra cantada porque a cifra não começava com `|`** (o
+  acorde de entrada vinha antes da primeira barra). Agora a barra decide em
+  qualquer posição, e o que sumiu da taxa não era sucesso — era erro escondido.
+- **21 arquivos foram descartados como cópia exata** (mesma cifra e mesma
+  letra em outro tom): é o transpositor que resolve isso, não o acervo.
+- **59 continuam de fora**, à espera de curadoria humana: token solto na linha
+  de cifra (erro de digitação do documento), seção vazia com rótulo único,
+  arquivos sem tom nem no corpo nem no título, acorde grudado.
+
+Ferramentas, nenhuma delas grava sem que se peça:
+
+- `node scripts/medir-importacao.mjs` — taxa e causas de falha agrupadas.
+- `node scripts/analisar-duplicatas.mjs` — grupos, o que é cópia e o que é
+  variante.
+- `node scripts/importar-lote.mjs [destino] [--seco]` — a gravação. Nunca
+  escreve por cima de arquivo que já existe.
+
+O critério de aceitação do acervo é `tests/acervo.test.ts`: todo `.cifra` faz
+round-trip textual exato, declara tom legível, transpõe para os 12 tons e
+volta a parsear, e transpor para o próprio tom devolve o arquivo idêntico.
 
 Decisões tomadas:
 
-- **Arranjo × letra: um arquivo, dois blocos.** O `.cifra` continua sendo um
-  arquivo por música; a separação é dentro do corpo, e o serializador sabe
-  emitir só o arranjo. Preserva o round-trip, as 139 fixtures e a curadoria num
-  arquivo só. *A marcação exata ainda é passo de desenho* — o que ela não pode
-  fazer é colidir com `[`, `{`, `~`, `|`, `%` ou `/`.
+- **Arranjo × letra: um arquivo, a letra marcada com `>`.** O `.cifra` continua
+  sendo um arquivo por música; a separação é dentro do corpo, e extrair vira um
+  filtro (`src/arranjoLetra.ts`). ~~Dois blocos~~ foi descartado: separar em
+  blocos destruiria o alinhamento posicional e a ordem em que as partes se
+  intercalam. Preserva o round-trip, as 139 fixtures e a curadoria num arquivo
+  só.
+- **Nome de arquivo não carrega tom.** Uma música, um `.cifra`, no tom em que
+  foi transcrita — tom é coisa que o transpositor resolve na hora de exibir,
+  não identidade. Quando duas variantes divergem de verdade (outro arranjo ou
+  outra transcrição), a segunda sobrevive como `<titulo>-<tom>.cifra`, porque
+  descartá-la perderia trabalho de alguém. Entre variantes, ganha a que usa
+  compasso `| |` em vez de posicional `~` — decisão do usuário.
+- **Igualdade é comparada pela harmonia ancorada no primeiro acorde**, não pelo
+  campo `tom:` — em vários arquivos o `tom:` veio do título do Drive e discorda
+  do que está escrito na cifra. E só é descartado o que tem também a mesma
+  letra: harmonia igual com letra diferente é variante, não cópia.
 - ~~Lote 1: as 35 músicas ativas~~ — **revisto no mesmo dia: o acervo inteiro
   veio de uma vez** (421 documentos). Com o importador já em 86% sobre os 73 do
   repertório ativo, o custo por arquivo estava conhecido e dois ciclos de
