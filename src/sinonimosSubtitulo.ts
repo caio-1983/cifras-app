@@ -113,7 +113,17 @@ export interface ResultadoNormalizacaoSubtitulo {
   reconhecido: boolean;
 }
 
-const RE_DOIS_PONTOS = /^([^:{}[\]]+):(.*)$/;
+// O rótulo antes dos dois pontos nunca contém barra. Sem excluir "|", a
+// repetição `|:` era lida como o separador do rótulo e "INTRODUÇÃO   |: F |"
+// virava `[Intro |] F | ...` — a barra de abertura sumia do compasso.
+const RE_DOIS_PONTOS = /^([^:{}[\]|]+):(.*)$/;
+
+// Rótulo sem delimitador nenhum, separado da cifra só por espaço:
+// "INTRODUÇÃO                |: F | C :|". A barra de compasso é o
+// delimitador de fato. Quem impede isto de comer uma linha de cifra comum
+// ("C9        | G |") não é a forma, é o vocabulário: sem sinônimo
+// reconhecido o importador descarta a conversão (ver `importador.ts`).
+const RE_ROTULO_ANTES_DE_COMPASSO = /^([^|:{}[\]]+?)\s+(\|.*)$/;
 
 /**
  * Normaliza um rótulo de seção cru do acervo (`INTRO`, `Introdução:`,
@@ -140,6 +150,7 @@ export function normalizarSubtitulo(bruto: string): ResultadoNormalizacaoSubtitu
   const matchColchetes = /^\[([^\]]*)\](.*)$/.exec(trimado);
   const matchChaves = /^\{([^{}]*)\}(.*)$/.exec(trimado);
   const matchDoisPontos = RE_DOIS_PONTOS.exec(trimado);
+  const matchAntesDeCompasso = RE_ROTULO_ANTES_DE_COMPASSO.exec(trimado);
 
   let conteudo: string;
   let sufixoBruto = '';
@@ -152,6 +163,9 @@ export function normalizarSubtitulo(bruto: string): ResultadoNormalizacaoSubtitu
   } else if (matchDoisPontos) {
     conteudo = matchDoisPontos[1]!;
     sufixoBruto = matchDoisPontos[2] ?? '';
+  } else if (matchAntesDeCompasso) {
+    conteudo = matchAntesDeCompasso[1]!;
+    sufixoBruto = matchAntesDeCompasso[2] ?? '';
   } else {
     conteudo = trimado;
   }

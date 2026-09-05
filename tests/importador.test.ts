@@ -313,3 +313,29 @@ test('importarCifraCrua: o documento manda — a opção nunca sobrepõe o tom d
   assert.ok(cifra.includes('tom: C'), cifra);
   assert.ok(!cifra.includes('tom: Ab'), cifra);
 });
+
+test('importar: linha que abre com acorde e depois compasso não vira letra cantada', () => {
+  // Regressão silenciosa achada medindo o acervo do Drive: 110 linhas em 62
+  // dos 377 arquivos entravam como texto cantado porque não COMEÇAVAM com
+  // "|". O arquivo importava "limpo" e estava errado — a pior forma de erro
+  // deste projeto.
+  const cru = ['A CASA É SUA', 'Tom: G', '', '[Verso 1]', 'C9                | G | G4  G |', 'A casa é Sua'].join('\n');
+  const musica = parseMusica(importarCifraCrua(cru, 'a-casa-e-sua.txt'), 'a-casa-e-sua.txt');
+  const cantadas = musica.corpo.filter((l) => l.tipo === 'letra');
+  assert.deepEqual(
+    cantadas.map((l) => (l as { texto: string }).texto),
+    ['A casa é Sua'],
+  );
+  const cifras = musica.corpo.filter((l) => l.tipo === 'cifra');
+  assert.equal(cifras.length, 1);
+  const acordes = (cifras[0] as { itens: { item: { tipo: string; textoOriginal?: string } }[] }).itens
+    .filter((i) => i.item.tipo === 'acorde')
+    .map((i) => i.item.textoOriginal);
+  assert.deepEqual(acordes, ['C9', 'G', 'G4', 'G']);
+});
+
+test('importar: rótulo de seção grudado na cifra sai como subtítulo, não como acorde inválido', () => {
+  const cru = ['CANÇÃO', 'Tom: F', '', 'INTRODUÇÃO                |: F | C :|'].join('\n');
+  const texto = importarCifraCrua(cru, 'cancao.txt');
+  assert.ok(texto.includes('[Intro] |: F | C :|'), texto);
+});

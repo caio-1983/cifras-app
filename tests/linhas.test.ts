@@ -132,3 +132,22 @@ test('classificarLinha: texto sem marcador nenhum é ERRO, não letra', () => {
 test('classificarLinha: letra que começa com ">" no conteúdo continua possível (o prefixo é só o primeiro)', () => {
   assert.equal((classificarLinha('>> vem, Senhor') as { texto: string }).texto, '> vem, Senhor');
 });
+
+test('classificarLinha: linha que ABRE com acorde e só depois abre compasso é cifra, não letra', () => {
+  // 110 linhas do acervo do Drive têm esta forma: o acorde de entrada vem
+  // antes da primeira barra ("C9        | G | G4 G |"). Antes, como a linha
+  // não COMEÇAVA com "|", ela caía em letra — a cifra virava letra cantada,
+  // em silêncio, em 62 dos 377 arquivos. Nenhuma letra de verdade do acervo
+  // contém "|": a barra é marca de compasso, e basta ela para decidir.
+  const linha = classificarLinha('C9                | G | G4  G |');
+  assert.equal(linha.tipo, 'cifra');
+  const itens = (linha as { itens: { item: { tipo: string; textoOriginal?: string } }[] }).itens;
+  const acordes = itens.filter((i) => i.item.tipo === 'acorde').map((i) => i.item.textoOriginal);
+  assert.deepEqual(acordes, ['C9', 'G', 'G4', 'G']);
+});
+
+test('classificarLinha: a barra tem de ser token, não pedaço de palavra', () => {
+  // "E/o" e "A/C#" têm barra no meio do token; nenhuma delas abre compasso.
+  // Sem exigir token isolado, qualquer letra com barra viraria cifra.
+  assert.throws(() => classificarLinha('Tudo o que sou/Te entrego'), /sem marcador/);
+});

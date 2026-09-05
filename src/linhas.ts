@@ -75,7 +75,16 @@ export function classificarLinha(linha: string, contexto?: ContextoLinha): Linha
     return { tipo: 'posicional', itens };
   }
 
-  if (primeiroChar === '|') {
+  // A barra de compasso decide, esteja ela onde estiver na linha. Muita
+  // cifra do acervo abre com o acorde de entrada e só depois marca o
+  // primeiro compasso ("C9        | G | G4 G |"); exigir que a linha
+  // COMEÇASSE com "|" mandava essas linhas para letra em silêncio — 110
+  // linhas em 62 dos 377 arquivos do Drive. Nenhuma letra do acervo tem
+  // "|" como token isolado, então a barra sozinha é sinal suficiente.
+  //
+  // Token isolado, não substring: "A/C#" e "sou/Te" têm barra no meio e
+  // não abrem compasso nenhum.
+  if (primeiroChar === '|' || /(?:^|\s)\|(?:$|\s)/.test(linha)) {
     return { tipo: 'cifra', itens: tokenizarTrecho(linha, 0) };
   }
 

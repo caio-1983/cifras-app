@@ -15,10 +15,16 @@ import type { Musica } from './tipos.ts';
 // sinônimo conhecido (ver `normalizarLinhaDeSubtituloSeForCandidata`).
 const RE_ROTULO_SOLTO_COM_DOIS_PONTOS = /^[^:{}[\]]+:.*$/;
 
+// Terceira forma solta: rótulo sem dois pontos, separado da cifra só por
+// espaço ("INTRODUÇÃO   |: F | C :|"). Tão ambígua quanto a dos dois pontos
+// — "C9   | G |" tem a mesma forma — e protegida do mesmo jeito: só
+// converte se o rótulo bater com um sinônimo conhecido.
+const RE_ROTULO_SOLTO_ANTES_DE_COMPASSO = /^[^|:{}[\]]+?\s+\|.*$/;
+
 function pareceCandidatoDeSubtitulo(linha: string): boolean {
   const trimada = linha.trim();
   if (trimada.startsWith('[') || trimada.startsWith('{')) return true;
-  return RE_ROTULO_SOLTO_COM_DOIS_PONTOS.test(trimada);
+  return RE_ROTULO_SOLTO_COM_DOIS_PONTOS.test(trimada) || RE_ROTULO_SOLTO_ANTES_DE_COMPASSO.test(trimada);
 }
 
 function normalizarLinhaDeSubtituloSeForCandidata(linha: string): string {
@@ -133,6 +139,12 @@ function marcarLinhasDeLetra(linhas: string[]): string[] {
     const trimada = linha.trim();
     if (trimada === '') return linha;
     if (/^[[~|>]/.test(trimada)) return linha;
+    // Barra de compasso em qualquer posição também é cifra, não só no
+    // começo da linha — mesma regra de `classificarLinha`, e pelo mesmo
+    // motivo: a linha que abre com o acorde de entrada e só depois marca
+    // o compasso virava letra cantada. O recuo original é preservado,
+    // porque nessas linhas a coluna posiciona o acorde.
+    if (/(?:^|\s)\|(?:$|\s)/.test(linha)) return linha;
     return `>${trimada}`;
   });
 }

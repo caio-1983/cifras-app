@@ -119,3 +119,21 @@ test('normalizarSubtitulo: "pré-refrão" continua batendo antes de "refrão" (o
   assert.deepEqual(normalizarSubtitulo('{pré-refrão}'), { texto: '[Pré-refrão]', reconhecido: true });
   assert.deepEqual(normalizarSubtitulo('{pre-refrao_2x}'), { texto: '[Pré-refrão 2x]', reconhecido: true });
 });
+
+test('rótulo sem dois pontos, colado na cifra da mesma linha, vira subtítulo', () => {
+  // Forma real do acervo: "INTRODUÇÃO                |: F | C | ... :|".
+  // A variante com dois pontos já era reconhecida; esta não, e por isso o
+  // rótulo ia parar dentro da linha de cifra, onde "INTRODUÇÃO" não parseia
+  // como acorde e derruba o arquivo inteiro.
+  const r = normalizarSubtitulo('INTRODUÇÃO                |: F | C | Em | Am :|');
+  assert.equal(r.reconhecido, true);
+  assert.equal(r.texto, '[Intro] |: F | C | Em | Am :|');
+});
+
+test('linha de cifra que abre com acorde NÃO vira subtítulo', () => {
+  // O mesmo formato — texto, espaços, compasso — mas "C9" não é sinônimo
+  // de seção nenhuma. É o que impede a regra acima de comer cifra: quem
+  // decide é o vocabulário, não a forma da linha.
+  const r = normalizarSubtitulo('C9                | G | G4  G |');
+  assert.equal(r.reconhecido, false);
+});
