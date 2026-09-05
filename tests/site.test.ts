@@ -306,3 +306,35 @@ test('configDoAmbiente escuta em 127.0.0.1 por padrão — o gate é o nginx', (
 test('repertório ausente falha na subida, em vez de servir lista vazia', () => {
   assert.throws(() => carregarRepertorio('/caminho/que/nao/existe.json'), /não consegui ler o repertório/);
 });
+
+test('as imagens estáticas são entregues como PNG, com cache longo', async () => {
+  await comApp(async (app) => {
+    for (const url of ['/estatico/marca.png', '/estatico/icone.png']) {
+      const r = await app.inject({ method: 'GET', url });
+      assert.equal(r.statusCode, 200, url);
+      assert.match(String(r.headers['content-type']), /image\/png/, url);
+      assert.match(String(r.headers['cache-control']), /immutable/, url);
+      // PNG de verdade, não uma página de erro devolvida com status 200
+      assert.deepEqual([...r.rawPayload.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], url);
+    }
+  });
+});
+
+test('o nome do produto está na aba e o ícone está declarado', async () => {
+  await comApp(async (app) => {
+    const html = (await app.inject({ method: 'GET', url: '/musicas' })).body;
+    assert.match(html, /<title>[^<]*· Integra Music<\/title>/);
+    assert.match(html, /rel=icon href="\/estatico\/icone\.png"/);
+    assert.match(html, /rel="apple-touch-icon"/);
+  });
+});
+
+test('a marca e o nome do produto aparecem na navegação', async () => {
+  await comApp(async (app) => {
+    const html = (await app.inject({ method: 'GET', url: '/musicas' })).body;
+    assert.match(html, /Integra Music/);
+    // A lateral e a barra do topo (celular) usam a mesma marca — trocar o
+    // arquivo troca as duas.
+    assert.equal(html.match(/\/estatico\/marca\.png/g)?.length, 2);
+  });
+});

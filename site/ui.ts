@@ -21,6 +21,9 @@
 import { esc } from '../gerador-ts/html.ts';
 
 /** Tokens + casca. Tudo em `@media screen`. */
+/** O nome do produto, num lugar só — aba, lateral e barra do topo. */
+const NOME_PRODUTO = 'Integra Music';
+
 export const CSS_UI = `
 @media screen{
   :root{
@@ -84,6 +87,8 @@ export const CSS_UI = `
   .barra-topo{position:sticky;top:0;z-index:20;display:flex;align-items:center;
       gap:10px;padding:10px 14px;background:var(--surface);
       border-bottom:1px solid var(--line)}
+  .barra-topo .marca .selo-topo{height:20px;width:auto;max-width:52px;
+      object-fit:contain;vertical-align:-4px;margin-right:7px}
   .barra-topo .marca{flex:1 1 auto;min-width:0;font-weight:700;font-size:15px;
       letter-spacing:-.01em}
   .barra-topo .marca span{display:block;font-weight:500;font-size:11.5px;
@@ -199,10 +204,12 @@ export const CSS_UI = `
     .lateral .marca{display:flex;align-items:center;gap:11px;
         padding:6px 8px 22px;font-weight:700;font-size:17px;
         letter-spacing:-.02em}
-    .lateral .marca .selo{flex:0 0 auto;width:34px;height:34px;display:grid;
-        place-items:center;border-radius:10px;background:var(--acento);
-        color:#fff}
-    .lateral .marca .selo .icone{width:19px;height:19px}
+    /* A marca traz as próprias cores, então o slot não tinge nada: só
+       reserva a altura e deixa a imagem caber inteira. object-fit:contain
+       com largura automática aceita marca quadrada ou deitada sem recortar —
+       é o que faz trocar a logo ser trocar o arquivo. */
+    .lateral .marca .selo{flex:0 0 auto;height:34px;width:auto;max-width:88px;
+        object-fit:contain;object-position:left center}
     .lateral .marca .nome{min-width:0}
     .lateral .marca .nome span{display:block;font-weight:500;font-size:10.5px;
         color:var(--rail-muted);letter-spacing:.08em;text-transform:uppercase;
@@ -220,11 +227,9 @@ export const CSS_UI = `
     .lateral :focus-visible{outline-color:var(--rail-ink)}
     /* No escuro o acento clareia (\`#a78bfa\`), e branco sobre ele não se lê —
        mesma correção que o \`.btn-forte\` já faz. */
-    :root[data-theme=dark] .lateral a[aria-current=page],
-    :root[data-theme=dark] .lateral .marca .selo{color:#16181d}
+    :root[data-theme=dark] .lateral a[aria-current=page]{color:#16181d}
     @media (prefers-color-scheme:dark){
-      :root:not([data-theme=light]) .lateral a[aria-current=page],
-      :root:not([data-theme=light]) .lateral .marca .selo{color:#16181d}
+      :root:not([data-theme=light]) .lateral a[aria-current=page]{color:#16181d}
     }
     .lateral .rodape-nav{margin-top:auto;padding-top:12px;
         border-top:1px solid var(--rail-linha)}
@@ -321,8 +326,8 @@ function lateral(ativo: string): string {
   const rodape = NAV_RODAPE.map((i) => itemLateral(i, ativo)).join('');
   return (
     '<nav class=lateral aria-label="Navegação principal">' +
-    `<div class=marca><span class=selo>${icone('musicas')}</span>` +
-    '<span class=nome>Cifras<span>Painel de operação</span></span></div>' +
+    '<div class=marca><img class=selo src="/estatico/marca.png" alt="">' +
+    `<span class=nome>${NOME_PRODUTO}<span>Painel de operação</span></span></div>` +
     grupos +
     `<div class=rodape-nav>${rodape}</div></nav>`
   );
@@ -342,7 +347,8 @@ function abas(ativo: string): string {
 function barraTopo(): string {
   return (
     '<div class=barra-topo>' +
-    '<div class=marca>Cifras<span>Painel de operação</span></div>' +
+    '<div class=marca><img class=selo-topo src="/estatico/marca.png" alt="">' +
+    `${NOME_PRODUTO}<span>Painel de operação</span></div>` +
     `<a class=icone-btn href="/configuracoes" aria-label="Configurações">${icone('config')}</a>` +
     '</div>'
   );
@@ -379,7 +385,9 @@ export function envelope(opcoes: {
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<meta name="robots" content="noindex, nofollow">' +
     '<meta name="color-scheme" content="light dark">' +
-    `<title>${esc(opcoes.titulo)}</title>` +
+    `<title>${esc(opcoes.titulo)} · ${NOME_PRODUTO}</title>` +
+    '<link rel=icon href="/estatico/icone.png" type="image/png">' +
+    '<link rel="apple-touch-icon" href="/estatico/icone.png">' +
     `<style>${opcoes.css}</style>${opcoes.tema ? '' : SCRIPT_TEMA}</head>` +
     `<body${classe}>${opcoes.corpo}${opcoes.scripts ?? ''}</body></html>`
   );

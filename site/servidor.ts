@@ -15,6 +15,8 @@
  *   GET /perfil               por que não existe conta de usuário
  *   GET /saude                healthcheck do systemd
  *   GET /robots.txt           bloqueia tudo
+ *   GET /estatico/marca.png   a marca do produto, para a lateral
+ *   GET /estatico/icone.png   a marca em quadrado: favicon hoje, PWA depois
  *
  * A setlist em execução viaja no `?ordem=` e a música atual no `?i=`/`?atual=`
  * (ver `site/setlist.ts`) — é o que faz "preparar no computador e executar no
@@ -28,6 +30,8 @@
  */
 import Fastify from 'fastify';
 import { fileURLToPath } from 'node:url';
+import { createReadStream } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { carregarRepertorio } from './repertorio.ts';
 import {
   paginaBiblioteca,
@@ -84,6 +88,22 @@ export function criarServidor(config: Config) {
     resposta.type('text/plain; charset=utf-8');
     return ROBOTS;
   });
+
+  // Único arquivo estático do site, servido por uma rota própria em vez de um
+  // plugin de estáticos: uma rota nomeada não expõe diretório por engano, e
+  // este processo escuta em 127.0.0.1 justamente para não abrir o acervo.
+  //
+  // Cache longo com "immutable": a marca é a mesma em toda página e não muda
+  // entre versões — e a igreja com wi-fi ruim é a regra, não a exceção.
+  // Trocar a marca é trocar o arquivo e recarregar forçado uma vez.
+  const pastaEstatica = join(dirname(fileURLToPath(import.meta.url)), 'estatico');
+  for (const arquivo of ['marca.png', 'icone.png']) {
+    app.get(`/estatico/${arquivo}`, async (_req, resposta) => {
+      resposta.type('image/png');
+      resposta.header('cache-control', 'public, max-age=31536000, immutable');
+      return createReadStream(join(pastaEstatica, arquivo));
+    });
+  }
 
   // A tela principal é o culto. Sem culto no repertório, o painel diz isso em
   // vez de redirecionar para lugar nenhum.
