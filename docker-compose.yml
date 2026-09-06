@@ -52,10 +52,13 @@ services:
 networks:
   proxy:
     external: true
-    # O nome EXATO da rede em que o `nginx-proxy-manager` está. Descubra em
-    # Portainer → Networks, ou em Containers → nginx-proxy-manager → aba
-    # Network. Costuma ser algo como `nginx-proxy-manager_default`.
+    # Preenchido na tela do Portainer (Environment variables), não aqui: o nome
+    # da rede é fato do servidor, não do projeto, e assim não é preciso commitar
+    # para corrigir.
+    #
+    # REDE_PROXY = o nome EXATO da rede em que o `nginx-proxy-manager` está.
+    # Veja em Portainer → Networks. Costuma ser `nginx-proxy-manager_default`.
     #
     # Se o painel e o proxy não estiverem na MESMA rede, o NPM responde 502: ele
     # simplesmente não enxerga o nome `cifras`.
-    name: NOME_DA_REDE_DO_NPM
+    name: ${REDE_PROXY}
