@@ -1,4 +1,4 @@
-# Deploy — louvor.integrasolutions.com.br
+# Deploy — louvor.integrasolutionsia.com.br
 
 Há **dois** caminhos aqui, e eles não se misturam. Confira em qual servidor
 você está antes de seguir qualquer um:
@@ -62,7 +62,7 @@ O DNS precisa estar resolvendo **antes** de pedir o certificado — a validaçã
 do Let's Encrypt é por HTTP.
 
 ```bash
-dig +short louvor.integrasolutions.com.br @a.auto.dns.br
+dig +short louvor.integrasolutionsia.com.br @a.auto.dns.br
 ```
 
 Consulte o autoritativo (`a.auto.dns.br`, do Registro.br) e não o resolvedor
@@ -101,12 +101,15 @@ Portainer → **Stacks** → **Add stack** → aba **Repository**.
 | Compose path | `docker-compose.yml` |
 | Authentication | desligado — o repositório é público |
 
-Em **Environment variables**, `REDE_PROXY` = o nome da rede do passo anterior.
+Em **Environment variables**, acrescente:
 
-Antes de dar **Deploy**, resolva a rede: em Portainer → **Networks**, ache a
-rede do `nginx-proxy-manager` e troque `NOME_DA_REDE_DO_NPM` no
-`docker-compose.yml` pelo nome exato. **Se o painel e o proxy não estiverem na
-mesma rede, o NPM responde 502** — ele simplesmente não enxerga o nome `cifras`.
+| name | value |
+|---|---|
+| `REDE_PROXY` | `nginx-proxy-manager_default` |
+
+É a rede em que o `nginx-proxy-manager` está (confira em Portainer → Networks).
+**Se o painel e o proxy não estiverem na mesma rede, o NPM responde 502** — ele
+simplesmente não enxerga o nome `cifras`.
 
 ## 3. Conferir antes de expor
 
@@ -126,7 +129,7 @@ No painel do NPM (porta 81), **Hosts → Proxy Hosts → Add Proxy Host**:
 
 | Campo | Valor |
 |---|---|
-| Domain Names | `louvor.integrasolutions.com.br` |
+| Domain Names | `louvor.integrasolutionsia.com.br` |
 | Scheme | `http` |
 | Forward Hostname | `cifras` (o nome do contêiner, não um IP) |
 | Forward Port | `3000` |
@@ -154,9 +157,9 @@ add_header X-Robots-Tag "noindex, nofollow" always;
 ## 5. Conferir depois de expor
 
 ```bash
-curl -si https://louvor.integrasolutions.com.br/ | head -1              # 401
-curl -si -u USUARIO:SENHA https://louvor.integrasolutions.com.br/ | head -1   # 200
-curl -s  https://louvor.integrasolutions.com.br/saude                   # sem senha
+curl -si https://louvor.integrasolutionsia.com.br/ | head -1              # 401
+curl -si -u USUARIO:SENHA https://louvor.integrasolutionsia.com.br/ | head -1   # 200
+curl -s  https://louvor.integrasolutionsia.com.br/saude                   # sem senha
 ```
 
 O primeiro é o que importa: **sem senha tem que dar 401.** Se der 200, o acervo
@@ -178,11 +181,22 @@ Commit, push, e no Portainer → Stacks → `cifras` → **Update the stack**, c
 
 | Sintoma | Onde olhar |
 |---|---|
+| **Página "Default Site"** | **o domínio está errado** — ver abaixo |
 | 502 no navegador | rede: `cifras` e o NPM na mesma? Forward Hostname é o nome do contêiner? |
 | 401 onde não devia | Access List do NPM; o `location = /saude` da aba Advanced |
 | Contêiner não sobe | Portainer → Containers → `cifras` → Logs |
 | Biblioteca com 13 músicas | `CIFRAS_ACERVO` — o acervo não montou, só o JSON |
 | Acorde fora da sílaba | não é deploy — é o núcleo; ver `docs/site.md` |
+
+> **O domínio é `integrasolutionsia.com.br`, com "ia".** Existe também um
+> `integrasolutions.com.br` sem o "ia", que não é este e não resolve. Custou
+> algumas horas de diagnóstico em 2026-09-06: o nginx respondia a página
+> "Default Site" para o nome inexistente, e as quatro tentativas de certificado
+> falharam por isso — não por propagação de DNS, como parecia.
+>
+> Quando o nginx devolve "Default Site", a leitura é sempre a mesma: **nenhum
+> server block casou com o nome pedido.** Confira a grafia do domínio antes de
+> mexer em rede, contêiner ou configuração.
 
 ---
 
@@ -260,12 +274,12 @@ sudo systemctl reload nginx   # reload, não restart: não derruba os outros
 
 Confira a porta do `proxy_pass` contra `CIFRAS_PORTA` do `.env` — são dois
 lugares e é o erro mais fácil de cometer. E confira o `server_name`: o arquivo
-ainda diz `cifras.integrasolutions.com.br`, e o subdomínio em uso é `louvor`.
+ainda diz `cifras.integrasolutionsia.com.br`, e o subdomínio em uso é `louvor`.
 
 ## 5. Certificado
 
 ```bash
-sudo certbot --nginx -d louvor.integrasolutions.com.br
+sudo certbot --nginx -d louvor.integrasolutionsia.com.br
 ```
 
 `--nginx` edita **só** o bloco deste subdomínio, acrescentando o `listen 443
@@ -291,9 +305,9 @@ O primeiro é o que importa: **sem senha tem que dar 401.** Se der 200, o
 acervo está aberto.
 
 ```bash
-curl -si https://louvor.integrasolutions.com.br/ | head -1        # 401
-curl -si -u banda:SENHA https://louvor.integrasolutions.com.br/ | head -1   # 200
-curl -s  https://louvor.integrasolutions.com.br/saude              # sem senha
+curl -si https://louvor.integrasolutionsia.com.br/ | head -1        # 401
+curl -si -u banda:SENHA https://louvor.integrasolutionsia.com.br/ | head -1   # 200
+curl -s  https://louvor.integrasolutionsia.com.br/saude              # sem senha
 ```
 
 ## Atualizar depois

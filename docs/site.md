@@ -1,6 +1,6 @@
 # O site (`site/`) — Painel de Operação Musical
 
-`cifras.integrasolutions.com.br` — ferramenta interna da banda, atrás de senha.
+`cifras.integrasolutionsia.com.br` — ferramenta interna da banda, atrás de senha.
 
 O conceito é um só: **preparar o culto no computador e executar o culto pelo
 celular.** A tela de trabalho não é a biblioteca, é o culto — e a inicial é a
