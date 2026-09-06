@@ -1,0 +1,61 @@
+# Stack do Painel de Operação Musical, para o Portainer.
+#
+# Esta VPS não é a do deploy/README.md: ela não tem nginx nem certbot no host.
+# Quem segura 80/443 é o contêiner `nginx-proxy-manager`, e é ele que emite e
+# renova o certificado. Portanto aqui NÃO há nginx, NÃO há certbot e NÃO há
+# systemd — só o processo Node, alcançável apenas pelo proxy.
+#
+# Antes de subir, troque `NOME_DA_REDE_DO_NPM` (ver instruções no fim).
+
+services:
+  cifras:
+    build: .
+    image: cifras-app:local
+    container_name: cifras
+    restart: unless-stopped
+
+    # NÃO acrescente `ports:` aqui.
+    #
+    # O acervo tem letra de música protegida e o único gate de acesso é o basic
+    # auth do proxy. Publicar uma porta cria um caminho que desvia do proxy e
+    # entrega o acervo inteiro, sem senha, para quem souber o IP. É exatamente o
+    # que já acontece com `biblioteca-postgres` (0.0.0.0:5432) nesta máquina.
+    #
+    # Sem `ports:`, o único jeito de chegar ao painel é atravessar o NPM.
+
+    environment:
+      CIFRAS_HOST: 0.0.0.0        # interface do CONTÊINER, não do host — ver Dockerfile
+      CIFRAS_PORTA: 3000
+      CIFRAS_REPERTORIO: /app/dados/repertorio.json
+      CIFRAS_ACERVO: /app/musicas/
+      CIFRAS_LOG: info
+      # Aparece em GET /saude. Útil para saber qual versão está no ar.
+      CIFRAS_VERSAO: prototipo-2026-09-06
+
+    networks:
+      - proxy
+
+    # O servidor não escreve nada em disco: a fonte da verdade são os .cifra
+    # que já vieram na imagem. Somente leitura fecha a porta para surpresa.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  proxy:
+    external: true
+    # O nome EXATO da rede em que o `nginx-proxy-manager` está. Descubra em
+    # Portainer → Networks, ou em Containers → nginx-proxy-manager → aba
+    # Network. Costuma ser algo como `nginx-proxy-manager_default`.
+    #
+    # Se o painel e o proxy não estiverem na MESMA rede, o NPM responde 502: ele
+    # simplesmente não enxerga o nome `cifras`.
+    name: NOME_DA_REDE_DO_NPM

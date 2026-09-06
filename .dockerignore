@@ -1,0 +1,34 @@
+# O que NÃO entra na imagem. Cada linha aqui é ou peso morto ou risco.
+
+node_modules/
+.git/
+.github/
+
+# O emissor Python é a referência de validação, não roda em produção — quem
+# serve HTML é gerador-ts/.
+gerador/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+tests/
+fixtures-extra/
+
+# Insumo de importação, não conteúdo servido.
+bruto/
+
+docs/
+deploy/
+*.md
+
+# Partituras do HCC: obra publicada da JUERP, carimbada "comercialização não
+# autorizada". Já está no .gitignore; repetido aqui porque a imagem é
+# distribuída e o .gitignore não a governa.
+HCC/
+
+# Segredo de ambiente nunca entra em imagem — as variáveis vêm do compose.
+.env
+
+.claude/
+.impeccable/
+*.png
