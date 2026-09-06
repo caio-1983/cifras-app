@@ -83,10 +83,15 @@ Portainer → **Stacks** → **Add stack** → aba **Repository**.
 | Campo | Valor |
 |---|---|
 | Name | `cifras` |
-| Repository URL | a URL do repositório privado |
-| Repository reference | `refs/heads/main` |
+| Repository URL | `https://github.com/abacontroladoria-dev/cifras-app` |
+| Repository reference | `refs/heads/painel-operacao-musical` |
 | Compose path | `docker-compose.yml` |
-| Authentication | ligado, com usuário e token de acesso pessoal |
+| Authentication | ligado: usuário `abacontroladoria-dev` + token de acesso pessoal |
+
+O token é do GitHub, não a senha da conta. Gere um *fine-grained token* com
+permissão **somente leitura** de conteúdo, restrito a este repositório: o
+Portainer só precisa clonar. Um token amplo guardado num painel web é acesso a
+tudo que a conta tem.
 
 Antes de dar **Deploy**, resolva a rede: em Portainer → **Networks**, ache a
 rede do `nginx-proxy-manager` e troque `NOME_DA_REDE_DO_NPM` no
