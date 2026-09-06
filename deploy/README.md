@@ -72,9 +72,22 @@ ele nunca vai resolver, e esperar não resolve.
 ## 1. Repositório
 
 O Portainer não recebe arquivos do seu disco: ele constrói a partir de um
-repositório Git. O repositório é **privado**, e isso não é preferência — o
-acervo tem letra de música de terceiro, e `docs/rumo.md` registra por que
-catálogo público está fora de escopo.
+repositório Git — `github.com/caio-1983/cifras-app`.
+
+> **Público em caráter temporário desde 2026-09-06**, para o Portainer clonar
+> sem token durante a montagem do protótipo. **Pendência aberta: voltar a
+> privado.** Enquanto estiver aberto, as 341 letras do acervo estão públicas e
+> indexáveis — o oposto do que o basic auth do site protege e do que
+> `docs/rumo.md` põe fora de escopo.
+>
+> ```bash
+> gh repo edit caio-1983/cifras-app --visibility private \
+>     --accept-visibility-change-consequences
+> ```
+>
+> Ao fechar, a stack do Portainer para de clonar: ligue **Authentication** nela,
+> com um *fine-grained token* de **Contents: Read-only** restrito a este
+> repositório.
 
 ## 2. Stack no Portainer
 
@@ -83,15 +96,12 @@ Portainer → **Stacks** → **Add stack** → aba **Repository**.
 | Campo | Valor |
 |---|---|
 | Name | `cifras` |
-| Repository URL | `https://github.com/abacontroladoria-dev/cifras-app` |
+| Repository URL | `https://github.com/caio-1983/cifras-app` |
 | Repository reference | `refs/heads/painel-operacao-musical` |
 | Compose path | `docker-compose.yml` |
-| Authentication | ligado: usuário `abacontroladoria-dev` + token de acesso pessoal |
+| Authentication | desligado — o repositório é público |
 
-O token é do GitHub, não a senha da conta. Gere um *fine-grained token* com
-permissão **somente leitura** de conteúdo, restrito a este repositório: o
-Portainer só precisa clonar. Um token amplo guardado num painel web é acesso a
-tudo que a conta tem.
+Em **Environment variables**, `REDE_PROXY` = o nome da rede do passo anterior.
 
 Antes de dar **Deploy**, resolva a rede: em Portainer → **Networks**, ache a
 rede do `nginx-proxy-manager` e troque `NOME_DA_REDE_DO_NPM` no
