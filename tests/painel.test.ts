@@ -381,6 +381,43 @@ test('a setlist da execução marca feita, atual e por vir, e leva a qualquer m�
   });
 });
 
+test('a rolagem automática fica na tela, não só na gaveta', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: `/executar/${CULTO}?i=0` });
+    // O botão flutuante existe e é irmão da cifra, não filho de uma gaveta:
+    // quem está tocando não abre menu para começar a rolar.
+    assert.ok(r.body.includes('id=auto-fab'), 'faltou o botão flutuante');
+    const antesDaGaveta = r.body.indexOf('id=auto-fab');
+    const primeiraGaveta = r.body.indexOf('class=exec-gaveta');
+    assert.ok(
+      antesDaGaveta > 0 && antesDaGaveta < primeiraGaveta,
+      'o botão flutuante caiu dentro de uma gaveta',
+    );
+    // Nasce escondido: sem JavaScript não há rolagem automática, e botão que
+    // não faz nada é pior que botão nenhum.
+    assert.match(r.body, /<button class=exec-auto id=auto-fab type=button hidden/);
+    // O da gaveta continua existindo — os dois comandam a mesma rolagem.
+    assert.ok(r.body.includes('id=auto-liga'), 'sumiu o controle da gaveta');
+  });
+});
+
+test('a casca do modo execução se recolhe, e a rolagem sobrevive a ela', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: `/executar/${CULTO}?i=0` });
+    // Topo e rodapé saem por transform sob `body.quieto`.
+    assert.match(r.body, /body\.quieto \.exec-topo\{transform:translateY\(-100%\)/);
+    assert.match(r.body, /body\.quieto \.exec-rodape\{transform:translateY\(100%\)/);
+    // O botão de rolagem NÃO é escondido junto: ele só desce para o lugar que
+    // o rodapé desocupou. É o controle que precisa sobreviver ao recolhimento.
+    assert.doesNotMatch(r.body, /body\.quieto \.exec-auto\{[^}]*(visibility:hidden|opacity:0)/);
+    assert.match(r.body, /body\.quieto \.exec-auto\{bottom:/);
+    // Rolar não conta como atividade — se contasse, a rolagem automática
+    // seguraria a casca aberta para sempre.
+    assert.ok(!/addEventListener\('scroll',mostrarCasca/.test(r.body));
+    assert.ok(r.body.includes("addEventListener('pointerdown',mostrarCasca"));
+  });
+});
+
 test('a transposição está na execução: os 16 tons e o passo de meio tom', async () => {
   await comApp(async (app) => {
     const r = await app.inject({ method: 'GET', url: `/executar/${CULTO}?i=0` });

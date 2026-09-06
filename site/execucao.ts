@@ -70,6 +70,47 @@ const CSS_EXEC = `
       color:var(--muted)}
   .exec-rodape .desligado{opacity:.3;pointer-events:none}
 
+  /* ------------------------------------------- a casca que se recolhe
+     Quem está de pé tocando lê a cifra, não a navegação. Passados alguns
+     segundos sem toque, topo e rodapé saem de cena e a tela fica só com a
+     música; qualquer toque os traz de volta.
+
+     Sai por transform, não por display: o leitor de tela continua encontrando
+     os controles, e o visibility:hidden ao fim da transição tira do caminho do
+     toque sem tirar da árvore. */
+  .exec-topo,.exec-rodape{transition:transform .24s ease,opacity .24s ease,
+      visibility .24s}
+  body.quieto .exec-topo{transform:translateY(-100%);opacity:0;visibility:hidden}
+  body.quieto .exec-rodape{transform:translateY(100%);opacity:0;visibility:hidden}
+  /* Sem a casca embaixo, a cifra pode usar o rodapé inteiro. */
+  body.quieto .exec-cifra{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+
+  /* ------------------------------------------- rolagem automática, na tela
+     O único controle que sobrevive ao recolhimento. Estava a dois toques de
+     distância (menu → Leitura) e é o que mais se usa tocando: quem está com o
+     violão na mão não abre gaveta. */
+  .exec-auto{position:fixed;right:14px;z-index:30;
+      bottom:calc(74px + env(safe-area-inset-bottom));
+      width:60px;height:60px;border-radius:50%;padding:0;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:1px;background:var(--raised);color:var(--ink);
+      border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.35);
+      transition:bottom .24s ease,background .15s ease,color .15s ease}
+  body.quieto .exec-auto{bottom:calc(18px + env(safe-area-inset-bottom))}
+  .exec-auto .icone{width:24px;height:24px;fill:currentColor;stroke:none}
+  .exec-auto .vel{font-size:9.5px;font-weight:700;letter-spacing:.06em;
+      color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+  .exec-auto[aria-pressed=true]{background:var(--cifra);color:#0b1220;
+      border-color:transparent}
+  .exec-auto[aria-pressed=true] .vel{color:inherit;opacity:.75}
+  .exec-auto .g-pausa{display:none}
+  .exec-auto[aria-pressed=true] .g-play{display:none}
+  .exec-auto[aria-pressed=true] .g-pausa{display:block}
+
+  @media (prefers-reduced-motion:reduce){
+    .exec-topo,.exec-rodape,.exec-auto{transition:none}
+  }
+
   /* ---------------------------------------------------- gavetas */
   .exec-gaveta{position:fixed;inset:0;z-index:40;display:flex;
       flex-direction:column;justify-content:flex-end;
@@ -220,6 +261,14 @@ export function paginaExecucao(
       ? `<a class=btn href="${esc(proxima)}" rel=next id=ir-proxima>Próxima &rarr;</a>`
       : '<span class="btn desligado" aria-disabled=true>Próxima &rarr;</span>') +
     '</nav>' +
+    // Nasce escondido e o script o revela: a rolagem automática só existe com
+    // JavaScript, e um botão que não faz nada é pior que botão nenhum.
+    '<button class=exec-auto id=auto-fab type=button hidden aria-pressed=false ' +
+    'aria-label="Rolagem automática">' +
+    '<svg class=icone viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path class=g-play d="M8 5l11 7-11 7z"/>' +
+    '<path class=g-pausa d="M7 5h3.4v14H7zm6.6 0H17v14h-3.4z"/></svg>' +
+    '<span class=vel id=auto-fab-vel>1&times;</span></button>' +
     // ------------------------------------------------------ gaveta setlist
     '<div class=exec-gaveta id=gaveta-setlist hidden role=dialog aria-modal=true ' +
     'aria-label="Setlist do culto"><div class=folha>' +
@@ -366,8 +415,22 @@ function scriptExec(): string {
   var KV='cifras:autoscroll';
   var vel=Math.min(5,Math.max(1,parseInt(ler(KV,'1'),10)||1));
   var ligado=false,resto=0,ultimo=0,quadro=null;
+  // Dois comandos para a MESMA rolagem: o da gaveta, com rótulo por extenso, e
+  // o botão flutuante, que é o que fica ao alcance tocando. Estado único,
+  // pintado nos dois — dois botões que discordam é pior que um botão só.
   var btn=document.getElementById('auto-liga'),mostra=document.getElementById('auto-vel');
-  function pintarVel(){if(mostra)mostra.textContent=vel+'\\u00d7'}
+  var fab=document.getElementById('auto-fab'),fabVel=document.getElementById('auto-fab-vel');
+  if(fab)fab.hidden=false;
+  function pintarVel(){
+    var t=vel+'\\u00d7';
+    if(mostra)mostra.textContent=t;
+    if(fabVel)fabVel.textContent=t;
+  }
+  function pintarLigado(){
+    if(btn){btn.textContent=ligado?'Parar':'Ativar';btn.setAttribute('aria-pressed',String(ligado))}
+    if(fab){fab.setAttribute('aria-pressed',String(ligado));
+      fab.setAttribute('aria-label',ligado?'Parar a rolagem automática':'Rolagem automática')}
+  }
   function passoScroll(t){
     if(!ligado)return;
     if(!ultimo)ultimo=t;
@@ -384,21 +447,46 @@ function scriptExec(): string {
   }
   function ligar(){
     ligado=true;ultimo=0;resto=0;
-    if(btn){btn.textContent='Parar';btn.setAttribute('aria-pressed','true')}
+    pintarLigado();
     quadro=requestAnimationFrame(passoScroll);
   }
   function desligar(){
     ligado=false;
     if(quadro)cancelAnimationFrame(quadro);
-    if(btn){btn.textContent='Ativar';btn.setAttribute('aria-pressed','false')}
+    pintarLigado();
   }
-  if(btn)btn.addEventListener('click',function(){ligado?desligar():ligar()});
+  function alternar(){ligado?desligar():ligar()}
+  if(btn)btn.addEventListener('click',alternar);
+  if(fab)fab.addEventListener('click',alternar);
   var menos=document.getElementById('auto-menos'),mais=document.getElementById('auto-mais');
   if(menos)menos.addEventListener('click',function(){vel=Math.max(1,vel-1);por(KV,vel);pintarVel()});
   if(mais)mais.addEventListener('click',function(){vel=Math.min(5,vel+1);por(KV,vel);pintarVel()});
   pintarVel();
   // Tocar na cifra pausa: a mão do músico é o botão mais próximo.
   document.getElementById('cifra').addEventListener('click',function(){if(ligado)desligar()});
+
+  // ------------------------------------------------ a casca se recolhe
+  // Aberta a tela, topo e rodapé saem de cena sozinhos e sobra a cifra. O
+  // botão de rolagem fica — é o único que se usa com o instrumento na mão.
+  // Qualquer toque traz a casca de volta.
+  //
+  // Só toque e tecla contam como atividade. Rolagem NÃO conta, e isso é
+  // deliberado: a rolagem automática rola a página o tempo todo e seguraria a
+  // casca aberta para sempre — exatamente nas horas em que ela mais atrapalha.
+  var ESPERA=4000,relogio=null;
+  function mostrarCasca(){
+    document.body.classList.remove('quieto');
+    if(relogio)clearTimeout(relogio);
+    relogio=setTimeout(recolherCasca,ESPERA);
+  }
+  function recolherCasca(){
+    // Gaveta aberta é conversa em andamento: não se recolhe por baixo dela.
+    if(document.querySelector('.exec-gaveta:not([hidden])'))return mostrarCasca();
+    document.body.classList.add('quieto');
+  }
+  addEventListener('pointerdown',mostrarCasca,{passive:true});
+  addEventListener('keydown',mostrarCasca,{passive:true});
+  mostrarCasca();
 
   // ------------------------------------------------ tom sem recarregar
   var alvo=document.getElementById('cifra');
