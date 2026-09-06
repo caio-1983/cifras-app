@@ -27,6 +27,8 @@ Cabeçalho em YAML, `---`, corpo.
 | `tom` | sim | Tom em que o corpo está escrito |
 | `momento` | não | `adoracao`, `celebracao`, `ceia`, `oferta`, `natal` |
 | `tessitura` | não | Faixa vocal a que o tom armazenado serve melhor (`masculino`, `feminino`) — informação editorial do arranjo original, não recalculada. Nunca dentro do valor de `tom`: um campo próprio, porque `tom` só guarda a nota. |
+| `fonte` | não | Hinário de origem, quando a música vem de um (`HCC`). |
+| `numero` | não | Número do hino dentro da `fonte`. Num hinário o número **é** a identidade — "hino 25" é como o hino é chamado —, então a busca da biblioteca acha por ele. Nunca embutido em `artista`: o acervo tinha `artista: HCC 25`, `artista: 25 HCC` e `artista: 329 HCC`, três grafias do mesmo dado no campo errado. |
 
 ## Tipos de linha no corpo
 

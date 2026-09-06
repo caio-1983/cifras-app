@@ -265,6 +265,57 @@ continuar precisando de revisão manual antes de importar.
 
 ---
 
+## 14. Documento de duas colunas achatado na exportação (2026-09-06)
+
+`COMO AGRADECER A JESUS?` (HCC 422) entrou no acervo com o corpo inteiro
+errado: `INTRO`, `A` e `refrão` viraram **letra cantada** (`>INTRO`), `B`
+virou linha posicional (`~B` — "B" é um acorde válido, e a detecção de
+posicional não tem como saber que ali era rótulo), e as linhas de acorde
+perderam o `~`, então o parser as leu como compasso. O efeito prático é o
+pior possível: **o arquivo passa em tudo** — round-trip, 12 tons, o
+`acervo.test.ts` inteiro — e mesmo assim os acordes saem fora da sílaba na
+primeira transposição, porque o relayout só recalcula coluna de linha
+marcada com `~`.
+
+A causa está no documento de origem, e é visível no `.txt` cru:
+
+```
+   1  COMO AGRADECER A JESUS?
+   2  TOM: Bb
+   5  INTRO
+  18  A
+  37  B
+  38  refrão
+  91  | Bb/D  Ab/C  | G7/B  Cm |  Bb/F  F |
+  96  Bb9                F/A      Fm/Ab     G7(5+)    G7
+  97  Como agradecer a Jesus o que fez por mim
+```
+
+Os rótulos estão em **uma coluna** do Google Doc e o conteúdo em outra; a
+exportação para texto achata as duas, e o que sobra é a lista de rótulos no
+topo, separada do corpo por dezenas de linhas em branco. A distância entre
+os rótulos (13, 19, 1 linha) é o espaço vertical que cada bloco ocupava na
+coluna da direita — daí `B` e `refrão` virem colados: são o **mesmo bloco**,
+nomeado duas vezes.
+
+**O sintoma é mensurável e o dump inteiro pode ser varrido por ele:** uma
+corrida de 8 ou mais linhas em branco consecutivas. São **19 arquivos** dos
+421, e o campeão (`digno-de-gloria.txt`) tem 65 seguidas. Pelo menos dois
+deles (`digno-de-gloria`, `alfa-e-omega`) já estão em `musicas/`, o que
+significa que entraram com o mesmo defeito silencioso.
+
+Não vira regra automática: nada no texto diz qual rótulo pertence a qual
+bloco — a adjacência de `B`/`refrão` é inferência humana, e um dos quatro
+rótulos (`B`) não tem conteúdo próprio. É **triagem** automática e curadoria
+manual, como o item 13 previu para as cifras incompletas.
+
+E é achado sobre o teste, não só sobre o dado: `acervo.test.ts` prova que o
+núcleo digere o arquivo, não que o arquivo está certo. Um `.cifra` sem
+nenhuma linha `~` num acervo que é majoritariamente posicional (item 1) é
+suspeito por construção — vale como heurística de triagem.
+
+---
+
 ## Conclusão
 
 O formato foi desenhado a partir das cifras que já estavam limpas — e por isso

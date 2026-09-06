@@ -4,7 +4,8 @@
 
 O conceito é um só: **preparar o culto no computador e executar o culto pelo
 celular.** A tela de trabalho não é a biblioteca, é o culto — e a inicial é a
-agenda, que leva a um culto em um toque.
+home de operação, que diz qual é o próximo culto, se ele está preparado, e
+leva a ele em um toque.
 
 ```
 Abrir culto → montar setlist → iniciar culto → executar pelo celular
@@ -22,7 +23,7 @@ nada.
 
 | Rota | O que faz |
 |---|---|
-| `GET /` | **a agenda**: próximos cultos deste aparelho, abrir culto, último tocado |
+| `GET /` | **a home**: domingos do mês, próximo culto, ações rápidas, últimos cultos |
 | `GET /culto/novo?data=…&periodo=…&nome=…&tema=…&musicas=…` | abre um culto: monta nome e setlist, redireciona |
 | `GET /culto/novo/:nome?titulo=…&tema=…&d=…` | painel de um culto aberto na tela |
 | `GET /executar/novo/:nome` | a execução desse culto |
@@ -66,7 +67,7 @@ Três decisões de cor sustentam isso:
   *etiqueta* (linha de lista) é cromo; tom como *escolha sobre a cifra* (o
   seletor de 16 e a grade da execução) continua no laranja `--cifra`. Dois
   papéis, duas cores — a distinção tem que sobreviver à distância de um braço.
-- **O lilás é alarme, não decoração.** A faixa do rascunho fica quieta
+- **O azul da marca é alarme, não decoração.** A faixa do rascunho fica quieta
   (superfície + borda) enquanto a ordem é a do culto, e só acende quando a
   setlist foi alterada, que é o que precisa ser notado.
 
@@ -102,12 +103,64 @@ nos rótulos, `#c9a3ff` nas anotações) porque `#0000ff` sobre `#0d0f12` é
 ilegível. **É a mesma tinta ajustada ao fundo, e vale só na tela** — o papel
 continua com a original.
 
-## A navegação tem quatro destinos
+## Atalhos de teclado na preparação
 
-`Culto`, `Músicas`, `Buscar`, `Cultos anteriores` — mais `Configurações` e
+Preparar culto é trabalho de mesa, repetitivo, com as duas mãos livres. Antes
+eram 33 paradas de `Tab` do título da primeira música até a ação principal do
+cartão da direita.
+
+| Tecla | O que faz |
+|---|---|
+| `j` / `k` | próxima e anterior música da setlist |
+| `[` / `]` | descer e subir meio tom na música atual |
+| `/` | abre e foca o filtro de adicionar música |
+| `Esc` | fecha o menu de tom, devolvendo o foco à pastilha |
+
+**Cada atalho aciona um link que já existe na tela** — os mesmos `href`s que o
+mouse usa. Nada aqui é o único caminho para nada, e nada depende de JavaScript
+para funcionar (sem script, clica-se o mesmo link). No fim da setlist a tecla
+não faz nada em vez de recarregar a mesma página, porque o passo desligado é
+`<span>` e não tem `href`.
+
+A legenda mora em `/configuracoes`, junto do resto do "como isto funciona", e
+nos `title` dos próprios botões. Legenda fixa na tela do culto seria cromo
+permanente numa tela que se orgulha de ser vazia.
+
+## O menu de tom não esconde tom
+
+O menu abria para baixo e cobria as músicas seguintes — e o que ele escondia era
+justamente o que se precisa ao transpor: **o tom das outras músicas do culto.**
+Quem troca o tom da 3 está comparando com o da 2 e o da 4.
+
+- **Na faixa larga** ele abre à **direita** da pastilha, sobre a coluna de
+  ações, onde não mora nenhum tom. As pastilhas das demais linhas ficam à
+  esquerda do menu e continuam visíveis.
+- **No estreito** ele é folha inferior, com véu, e a linha dona sobe para o alto
+  da tela — a folha tapava a própria música que estava sendo alterada, que é
+  pior que tapar as vizinhas.
+- **As outras linhas ficam `inert` e recuam para 45%** enquanto ele está aberto.
+  Antes dava para clicar no `+` da música vizinha ao lado do menu aberto e
+  transpor a música errada sem perceber.
+
+## A navegação é de conteúdo, não de funções
+
+`Início`, `Músicas`, `Hinário`, `Cultos anteriores` — mais `Configurações` e
 `Perfil` no rodapé. Transposição, escala de fonte, filtro por tom e troca de
 música moram **dentro** da tela que precisa delas. Menu não é catálogo de
 funções: quem está no palco procura a música, não o item de menu.
+
+`Buscar` **deixou de ser destino**: a busca é o topo de `Músicas`, que é onde
+o acervo está. `Hinário` entrou pelo teste oposto e passou: não é função nem
+filtro salvo, é o mesmo acervo em **outra ordem**. Hino se chama pelo número
+("vamos no 422"), e `/musicas` ordena por título — a ordem errada para isso.
+Duas ordens do mesmo acervo são dois destinos; por isso `Hinário` mora no
+grupo `Biblioteca`, ao lado de `Músicas`, e não num grupo próprio.
+
+**Não há botão de "pôr no culto" na tela do hinário.** O culto não tem URL
+fixa — ele é a setlist codificada na querystring —, então uma tela que não
+sabe qual culto está aberto não teria para onde adicionar. Hino entra no culto
+pelo mesmo `+ Adicionar música` de qualquer música; o que mudou é que o filtro
+de lá passou a casar com o número do hino.
 
 ## O estado de operação é a URL
 
@@ -296,13 +349,51 @@ estabilizar (`docs/achados-importacao.md`), `site/repertorio.ts` passa a ler
 `musicas/*.cifra` pelo parser do núcleo e o JSON some. O resto do site fala
 `MusicaDados`, então a troca fica contida naquele módulo.
 
-## A agenda (`/`) e o culto que nasce na tela
+## A home (`/`) e o culto que nasce na tela
 
-`/` era um redirecionamento para o culto mais recente do repertório. Agora é a
-**agenda**: os cultos marcados neste aparelho, o botão **Abrir culto** e o
-último culto tocado a um toque. A troca tem um motivo concreto — o culto
-aberto na tela o servidor não conhece, e sem a agenda ele não tinha caminho
-pelo menu.
+`/` era um redirecionamento para o culto mais recente do repertório; depois
+virou a agenda dos cultos deste aparelho. Hoje é a **home de operação**, e ela
+existe para responder quatro perguntas, nesta ordem:
+
+1. **Qual é o próximo culto?** — o cartão `#proximo`, que é o CTA da página.
+2. **Ele já está preparado?** — o selo do cartão: verde quando sim, amarelo
+   quando não. Amarelo é só alerta; azul continua sendo a única tinta de ação.
+3. **O que do mês já foi preparado?** — a grade dos domingos, com "X de N
+   preparados" e barra.
+4. **O que preciso fazer agora?** — as quatro ações rápidas.
+
+**A grade do mês sai do calendário, não de cadastro.** Culto de domingo é a
+regra da casa: `domingosDoMes` deriva os domingos do mês corrente (quatro ou
+cinco, conforme o mês cai) e cada domingo é clicável. O estado de cada um vem
+de duas fontes, e a divisão é a mesma do resto do painel:
+
+| Estado | Quem sabe | Como |
+|---|---|---|
+| Realizado | o **servidor** | o repertório casa por dia e mês — o nome do culto não carrega ano |
+| Preparado / Em preparo | o **aparelho** | `SCRIPT_HOME` lê o índice em `localStorage` e a setlist da chave do culto |
+| Pendente | ninguém | é o estado inicial |
+
+Por isso a grade sai do servidor já correta e o script só **acrescenta** o que
+o aparelho conhece: sem JavaScript a home continua respondendo as quatro
+perguntas, só não conhece os cultos abertos neste aparelho. Domingo pendente
+abre o formulário **com a data já preenchida** — clicar em 20/09 e ter que
+digitar 20/09 seria trabalho inventado; o `href` do link leva ao mesmo lugar
+sem script.
+
+**O que a home não mostra**: horário e número de músicos não existem no modelo
+(ver `site/cultos.ts`), e a home não os inventa para encher cartão. Data de
+culto tocado sai sem ano, pelo mesmo motivo. E como o servidor guarda o culto
+(aparelho + link, sem estado) saiu da home: é assunto de Configurações, não de
+quem está marcando um culto.
+
+O card **Nova música** aparece desabilitado: adicionar música ao acervo não
+existe — o acervo entra por importação (`docs/plano-camada-formato.md`) e
+cadastro na tela é sprint 2. Um card que abrisse outra coisa seria mentira; um
+card ausente esconderia a lacuna.
+
+Na lateral, `/` é **Início** — a operação. O culto aberto não é item de menu
+porque não tem URL fixa: ele nasce do domingo que se clica ou do botão de novo
+culto. Continuam sendo três destinos.
 
 **Abrir culto** é um modal com quatro campos:
 

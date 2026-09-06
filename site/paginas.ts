@@ -22,6 +22,7 @@
 import { CSS, escrever, esc } from '../gerador-ts/html.ts';
 import type { MusicaIndexada, Repertorio } from './repertorio.ts';
 import {
+  NOME_MES,
   PERIODOS,
   PERIODOS_OFERECIDOS,
   identidadeDoCulto,
@@ -31,7 +32,7 @@ import {
 } from './cultos.ts';
 import { TONS, passoDeTom } from './tons.ts';
 import { codificarOrdem } from './setlist.ts';
-import { CSS_UI, CSS_CIFRA, paginaPainel, envelope, icone } from './ui.ts';
+import { CSS_UI, CSS_CIFRA, paginaPainel, envelope, icone, botaoTema } from './ui.ts';
 
 /** CSS das telas de preparação. Só tela — o papel não conhece nada disto. */
 const CSS_PREPARO = `
@@ -63,8 +64,8 @@ const CSS_PREPARO = `
     .culto-topo .acoes .btn-grande{flex:1 1 auto}
   }
 
-  /* Estado quieto quando a ordem é a do culto; o lilás fica reservado para a
-     setlist alterada, que é o que precisa ser notado. */
+  /* Estado quieto quando a ordem é a do culto; o azul da marca fica reservado
+     para a setlist alterada, que é o que precisa ser notado. */
   .rascunho{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
       margin-top:14px;padding:10px 14px;border-radius:var(--raio);
       background:var(--surface);border:1px solid var(--line);
@@ -73,20 +74,32 @@ const CSS_PREPARO = `
   .rascunho[data-estado=alterada]{background:var(--acento-fraco);
       border-color:transparent;color:var(--ink)}
   .rascunho[data-estado=alterada] b{color:var(--acento)}
-  .rascunho .btn{min-height:36px;padding:0 12px;font-size:13px}
+  .rascunho .btn{min-height:36px;padding:6px 12px;font-size:13px}
 
   /* ------------------------------------------------ setlist */
   .setlist{list-style:none;margin:0;padding:0}
+  /* No estreito o título fica com a linha inteira e os controles descem para
+     uma faixa própria. Antes o tom dividia a primeira linha com o nome, e o
+     que sobrava para o título eram ~150px — "EU VOU CONSTRUIR" virava
+     reticências. Descer a faixa também é o que dá espaço para o alvo de 44px
+     sem encostar um controle no outro. */
   .setlist li{display:grid;
       grid-template-columns:auto auto minmax(0,1fr) auto;
-      grid-template-areas:"marca num nome tom" ". . acoes acoes";
-      align-items:center;gap:4px 10px;padding:12px 14px;
+      grid-template-areas:"marca num nome nome" "ctl ctl ctl ctl";
+      align-items:center;gap:6px 10px;padding:12px 14px;
       border-bottom:1px solid var(--line)}
+  /* A faixa de controles do estreito. \`space-between\` em vez de coluna de
+     grade porque a coluna \`minmax(0,1fr)\` encolhia sob o conteúdo e fazia o
+     grupo do tom transbordar até encostar nas setas — medido 0px de folga a
+     360px, pior que os 4px que a correção veio consertar. */
+  .setlist .controles{grid-area:ctl;display:flex;align-items:center;
+      justify-content:space-between;gap:12px;min-width:0}
   .setlist li:last-child{border-bottom:0}
-  /* A música atual ganha barra de acento na borda viva do cartão — o realce
-     tem que sobreviver à lista sem margem lateral. */
-  .setlist li[data-atual=true]{background:var(--acento-fraco);
-      box-shadow:inset 3px 0 0 var(--acento)}
+  /* A barra de acento de 3px na borda saiu: era redundante — o fundo
+     \`--acento-fraco\`, o \`▶\` e o número em acento já dizem qual é a música
+     atual, três vezes. Barra lateral colorida em item de lista é decoração
+     com cara de sistema, e este realce não precisava dela. */
+  .setlist li[data-atual=true]{background:var(--acento-fraco)}
   .setlist .marca{grid-area:marca;width:14px;text-align:center;
       color:var(--acento);font-size:11px;line-height:1}
   .setlist .num{grid-area:num;font-family:ui-monospace,Menlo,monospace;
@@ -107,17 +120,47 @@ const CSS_PREPARO = `
   .menu-tom>summary{list-style:none;cursor:pointer}
   .menu-tom>summary::-webkit-details-marker{display:none}
   .menu-tom[open]>summary{background:var(--acento);color:#fff}
-  :root[data-theme=dark] .menu-tom[open]>summary{color:#16181d}
-  @media (prefers-color-scheme:dark){
-    :root:not([data-theme=light]) .menu-tom[open]>summary{color:#16181d}
+  /* Só no estreito, onde o menu é folha: o véu escurece a página e explica
+     sozinho que tocar fora fecha. Na faixa larga o menu abre ao lado sem
+     tapar nada, e véu ali seria drama por nada. */
+  @media (max-width:699px){
+    .menu-tom[open]::before{content:"";position:fixed;inset:0;z-index:55;
+        background:rgba(10,12,20,.45)}
   }
-  .menu-lista{position:absolute;right:0;top:calc(100% + 6px);z-index:40;
-      display:grid;grid-template-columns:repeat(4,minmax(46px,1fr));gap:4px;
-      padding:8px;border-radius:12px;background:var(--surface);
-      border:1px solid var(--line);box-shadow:0 14px 34px rgba(10,12,20,.22)}
-  /* No celular a linha é estreita: o menu sai alinhado à direita e não
-     estoura a tela. */
-  @media (max-width:420px){.menu-lista{right:-6px;grid-template-columns:repeat(4,minmax(44px,1fr))}}
+  /* As outras linhas recuam enquanto um menu está aberto. É par visual do
+     \`inert\` que o script põe nelas: antes dava para clicar no \`+\` da música
+     2 com o menu da 1 aberto e transpor a música errada sem perceber. */
+  .setlist[data-menu-aberto] li{transition:opacity .15s ease-out}
+  .setlist[data-menu-aberto] li:not([data-menu-dono]){opacity:.45}
+  @media (prefers-reduced-motion:reduce){
+    .setlist[data-menu-aberto] li{transition:none}
+  }
+  :root[data-theme=dark] .menu-tom[open]>summary{color:#0b1220}
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme=light]) .menu-tom[open]>summary{color:#0b1220}
+  }
+  /* ONDE o menu abre é decisão de conteúdo, não de conveniência de CSS.
+     Ele cobria as músicas de baixo — e a informação escondida era justamente
+     a que se precisa ao transpor: o tom das OUTRAS músicas do culto. Quem
+     troca o tom da 3 está comparando com o da 2 e o da 4.
+
+     Na faixa larga ele passa a abrir à DIREITA da pastilha, sobre a coluna
+     de ações, onde não mora nenhum tom. As pastilhas das demais linhas ficam
+     à esquerda do menu e continuam visíveis. No estreito vira folha inferior:
+     sobe do rodapé, na zona do polegar, e a lista continua legível acima. */
+  .menu-lista{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:60;
+      display:grid;grid-template-columns:repeat(4,minmax(44px,1fr));gap:8px;
+      padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+      border-radius:16px 16px 0 0;background:var(--surface);
+      border:1px solid var(--line);border-bottom:0;
+      box-shadow:0 -8px 20px rgba(10,12,20,.30)}
+  @media (min-width:700px){
+    .menu-lista{position:absolute;left:calc(100% + 8px);right:auto;top:50%;
+        bottom:auto;transform:translateY(-50%);width:216px;
+        grid-template-columns:repeat(4,minmax(46px,1fr));gap:4px;padding:8px;
+        border-radius:12px;border-bottom:1px solid var(--line);
+        box-shadow:0 8px 20px rgba(10,12,20,.28)}
+  }
   .menu-lista a{display:flex;flex-direction:column;align-items:center;
       justify-content:center;gap:1px;min-height:44px;border-radius:8px;
       background:var(--raised);color:var(--ink);text-decoration:none;
@@ -125,10 +168,10 @@ const CSS_PREPARO = `
   .menu-lista a:hover{background:var(--acento-fraco)}
   /* O tom escolhido usa o laranja da cifra, como o seletor da página da
      música: aqui o tom é ESCOLHA sobre a cifra, não etiqueta de lista. */
-  .menu-lista a[aria-current=true]{background:var(--cifra);color:#fff}
-  .menu-lista a[aria-current=true] .enar{color:#ffe6d5}
+  .menu-lista a[aria-current=true]{background:var(--cifra);color:#0b1220}
+  .menu-lista a[aria-current=true] .enar{color:inherit;opacity:.8}
   .menu-lista .origem{box-shadow:inset 0 -3px 0 var(--cifra)}
-  .menu-lista .enar{font-family:var(--sans);font-weight:500;font-size:10px;
+  .menu-lista .enar{font-family:var(--sans);font-weight:500;font-size:11px;
       color:var(--muted);line-height:1}
   .menu-abrir{grid-column:1/-1;margin-top:2px;min-height:40px!important;
       font-family:var(--sans)!important;font-size:13px!important;
@@ -145,16 +188,23 @@ const CSS_PREPARO = `
       text-decoration:none;font-size:14px}
   .setlist .acoes a:hover{background:var(--raised);color:var(--ink)}
   .setlist .acoes .remover:hover{color:var(--alerta)}
-  .setlist .acoes span{opacity:.25}
+  /* A 25% a seta sumia. Ela é \`aria-hidden\` e não recebe foco — é reserva de
+     espaço — mas "não dá para subir a primeira" é informação, e informação
+     invisível não informa. Mesmo tratamento do \`.passos .desligado\`. */
+  .setlist .acoes span{color:var(--muted);opacity:.5}
   @media (min-width:700px){
     .setlist li{grid-template-columns:auto auto minmax(0,1fr) auto auto;
         grid-template-areas:"marca num nome tom acoes"}
+    /* O envoltório se dissolve: tom e ações voltam a ser itens da grade da
+       linha, exatamente como antes de ele existir. */
+    .setlist .controles{display:contents}
     /* Tom e ações são grupos diferentes: um mexe na música, o outro na ordem.
        A separação é o que impede errar o alvo com a mão apressada. */
     .setlist .acoes{margin-left:14px;padding-left:12px;
         border-left:1px solid var(--line)}
     .setlist li[data-atual=true] .acoes{border-left-color:transparent}
   }
+
 
   .adicionar{margin:0}
   .adicionar summary{display:inline-flex;list-style:none;cursor:pointer;
@@ -187,7 +237,11 @@ const CSS_PREPARO = `
   .passos .conta{font-family:ui-monospace,Menlo,monospace;font-size:13px;
       font-weight:700;color:var(--muted)}
   .passos .btn{min-height:40px}
-  .passos .desligado{opacity:.35;pointer-events:none}
+  /* Cor explícita em vez de \`opacity:.35\`: a 35% o rótulo ficava ilegível, e
+     saber que "Anterior" existe (e está no fim) é informação. Desligado se lê
+     pela ausência de borda e pelo tom apagado, não por quase sumir. */
+  .passos .desligado{color:var(--muted);border-color:transparent;
+      background:transparent;cursor:default}
 
   /* ------------------------------------------------ biblioteca */
   /* Campo, filtros e lista vivem no mesmo cartão: procurar é uma ação só. */
@@ -207,7 +261,24 @@ const CSS_PREPARO = `
   .lista .nome{flex:1 1 auto;min-width:0}
   .lista .nome b{display:block;font-size:16px;font-weight:600;line-height:1.25}
   .lista .nome span{display:block;margin-top:2px;color:var(--muted);font-size:13px}
-  .contagem{margin:18px 0 0;color:var(--muted);font-size:13px}
+
+  /* ------------------------------------------------ hinário */
+  /* O número do hino é o identificador, e a coluna dele é o que o olho
+     percorre — é assim que se lê o índice de um hinário impresso. Largura
+     fixa e tabular-nums para 25, 66 e 422 empilharem pela unidade; se
+     cada número tivesse a largura do próprio texto, a coluna serrilharia e
+     deixaria de ser coluna. Alinhado à direita pelo mesmo motivo.
+     Tratamento exclusivo desta tela: em nenhuma outra o número identifica.
+     Sem régua separando do título: os números alinhados já são a coluna, e
+     um filete que só se enxerga de perto é decoração, não estrutura. */
+  .num-hino{flex:0 0 auto;width:3.6ch;text-align:right;
+      font-variant-numeric:tabular-nums;font-feature-settings:"tnum";
+      font-size:19px;font-weight:600;line-height:1;color:var(--ink)}
+  /* A linha do hinário tem UMA linha de texto, não duas: os 64px da lista de
+     músicas foram medidos para título + artista, e aqui virariam ar. Índice
+     se lê por densidade. Continua acima dos 44px de alvo de toque. */
+  #hinos a{min-height:52px}
+  .contagem{margin:18px 0 0;max-width:68ch;color:var(--muted);font-size:13px}
 
   /* ------------------------------------------------ cifra solta */
   .cifra-topo{position:sticky;top:0;z-index:15;display:flex;align-items:center;
@@ -227,12 +298,16 @@ const CSS_PREPARO = `
       border-radius:var(--raio);background:var(--raised);color:var(--ink);
       text-decoration:none;font-weight:700;font-size:16px;padding:0 10px;
       font-family:ui-monospace,Menlo,monospace}
-  .seletor-tons a .enar{font-family:var(--sans);font-weight:500;font-size:10px;
+  .seletor-tons a .enar{font-family:var(--sans);font-weight:500;font-size:11px;
       color:var(--muted);line-height:1}
-  .seletor-tons a[aria-current=true]{background:var(--cifra);color:#fff}
-  .seletor-tons a[aria-current=true] .enar{color:#ffe6d5}
+  .seletor-tons a[aria-current=true]{background:var(--cifra);color:#0b1220}
+  .seletor-tons a[aria-current=true] .enar{color:inherit;opacity:.8}
   .seletor-tons .origem{box-shadow:inset 0 -3px 0 var(--cifra)}
-  .cifra-solta{padding:16px 14px 40px}
+  /* A cifra solta sai do chão e vai para a superfície. Não é enfeite: sobre
+     \`--ground\` o laranja \`#ff6600\` mede 2,73:1 e sobre o branco 2,94:1 — o
+     mesmo do papel. O fundo tingido do painel estava piorando a leitura da
+     cifra em relação à folha impressa, e a cifra é o que se veio ler. */
+  .cifra-solta{padding:16px 14px 40px;background:var(--surface);min-height:70vh}
   .grupo-fonte{display:flex;gap:4px;flex:0 0 auto}
   .grupo-fonte button{min-width:42px;min-height:40px;border-radius:8px;
       background:var(--raised);font-weight:700;font-size:14px}
@@ -295,6 +370,201 @@ const CSS_PREPARO = `
   .ultimo-culto .rot{display:block;color:var(--muted);font-size:11.5px;
       font-weight:700;letter-spacing:.09em;text-transform:uppercase}
 
+  /* ------------------------------------------------ home
+     A home responde quatro perguntas, nessa ordem: qual é o próximo culto,
+     ele está preparado, o que já foi preparado no mês, e o que fazer agora.
+     Tudo o mais é ruído — inclusive explicação de como o servidor guarda (ou
+     não guarda) as coisas, que mudou para Configurações. */
+  /* O chão da home.
+     ---------------
+     O mockup resolve o fundo com foto de congregação. Aqui não entra foto — e
+     não é só falta de arquivo: o \`DESIGN.md\` fecha as saídas óbvias. O
+     gradiente da marca "não entra na interface", e o acento aparece em ação,
+     seleção e estado, "nunca em decoração". Fundo com a logo ampliada, faixa
+     em azul→lima ou textura de cifra estariam todos fora por essa regra — e o
+     de cifra ainda seria pior, porque num app de cifra um acorde decorativo se
+     lê como dado.
+     O que sobra é o que a regra permite e o mockup de fato mostra: LUZ. A
+     mesma cena que decide o tema (\`DESIGN.md\`) decide o chão — sala iluminada,
+     luz vindo de um lado. O neutro ganha uma diagonal: clareia no alto à
+     direita, onde o olho termina o título e encontra o "Próximo culto", e
+     assenta embaixo à esquerda, onde o trilho escuro já pesa. Nenhuma cor
+     nova, nenhum acento, amplitude de ~3% de luminância — é profundidade, não
+     enfeite.
+     \`fixed\`: o chão é a sala e não rola junto com o painel. Só na home, que é
+     a única tela com hero; as telas densas continuam no chão chapado. */
+  /* As duas pontas da diagonal são tokens para o tema poder trocá-las sem
+     reescrever a receita — mesma disciplina do resto do sistema. */
+  body.home{--chao-luz:255,255,255; --chao-baixo:227,234,243;
+      background:
+        radial-gradient(120% 80% at 92% -8%,
+          rgb(var(--chao-luz)) 0%,rgba(var(--chao-luz),0) 62%),
+        radial-gradient(110% 90% at 4% 104%,
+          rgb(var(--chao-baixo)) 0%,rgba(var(--chao-baixo),0) 58%),
+        var(--ground);
+      background-attachment:fixed}
+  :root[data-theme=dark] body.home{--chao-luz:21,28,38; --chao-baixo:5,8,12}
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme=light]) body.home{--chao-luz:21,28,38;
+        --chao-baixo:5,8,12}
+  }
+  /* No celular a luz vem de cima: não há canto direito livre — o cartão ocupa
+     a largura inteira e a diagonal viraria mancha atrás do texto. \`fixed\`
+     também sai: em Safari de iOS ele treme na rolagem. */
+  @media (max-width:699px){
+    body.home{background:
+        radial-gradient(140% 40% at 70% 0%,
+          rgb(var(--chao-luz)) 0%,rgba(var(--chao-luz),0) 70%),
+        var(--ground);
+        background-attachment:scroll}
+  }
+
+  .home-topo{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px;
+      padding-bottom:6px}
+  .home-topo .quem{flex:1 1 320px;min-width:0}
+  .home-topo h1{font-size:clamp(26px,4.2vw,34px);letter-spacing:-.03em;
+      line-height:1.12;text-wrap:balance}
+  .home-topo .sub{margin:10px 0 0;max-width:46ch;color:var(--muted);
+      font-size:15px;text-wrap:pretty}
+  .home-topo .controles{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+  /* No celular a barra de topo já leva Configurações; aqui os dois ícones
+     seriam o mesmo alvo duas vezes na mesma dobra. */
+  @media (max-width:899px){.home-topo .controles{display:none}}
+
+  /* Duas colunas no computador: o mês à esquerda (é uma grade e pede largura),
+     o próximo culto à direita, onde o olho termina a leitura do título. */
+  .home-grade{display:grid;gap:16px;margin-top:20px;align-items:start}
+  @media (min-width:1000px){
+    .home-grade{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}
+  }
+
+  .mes-topo{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;
+      padding:18px 18px 0}
+  .mes-topo .quem{flex:1 1 200px;min-width:0}
+  /* Só a inicial: \`capitalize\` faria "Setembro De 2026". */
+  .mes-topo h2{font-size:20px;letter-spacing:-.02em}
+  .mes-topo h2::first-letter{text-transform:uppercase}
+  .mes-topo .sub{margin:3px 0 0;color:var(--muted);font-size:13px}
+  .mes-topo .conta{flex:0 0 auto;text-align:right}
+  .mes-topo .conta b{display:inline-flex;align-items:center;min-height:28px;
+      padding:0 11px;border-radius:999px;background:var(--raised);
+      color:var(--muted);font-size:12.5px;font-weight:700}
+  .barra{height:6px;margin:12px 18px 0;border-radius:999px;
+      background:var(--raised);overflow:hidden}
+  .barra i{display:block;height:100%;border-radius:999px;background:var(--viva);
+      transition:width .35s ease-out}
+  @media (prefers-reduced-motion:reduce){.barra i{transition:none}}
+
+  /* Grade de domingos: quatro ou cinco por mês, e o dedo precisa de alvo. */
+  .domingos{display:grid;gap:10px;padding:16px 18px 18px;
+      grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+  .domingos a{display:flex;flex-direction:column;align-items:center;
+      justify-content:center;gap:7px;min-height:104px;padding:14px 8px;
+      border-radius:12px;border:1px solid var(--line);background:var(--surface);
+      text-decoration:none;text-align:center}
+  .domingos a:hover{border-color:var(--acento);background:var(--acento-fraco)}
+  .domingos b{font-size:17px;font-weight:700;letter-spacing:-.01em}
+  .domingos .rot{color:var(--muted);font-size:12px;font-weight:600}
+  .domingos .bolha{width:26px;height:26px;border-radius:50%;
+      border:2px solid var(--line);display:grid;place-items:center;
+      color:transparent;font-size:14px;font-weight:700;line-height:1}
+  .domingos [data-estado=preparado],.domingos [data-estado=realizado]{
+      background:var(--viva-fraca);border-color:transparent}
+  .domingos [data-estado=preparado] .bolha,
+  .domingos [data-estado=realizado] .bolha{background:var(--viva);
+      border-color:var(--viva);color:#fff}
+  :root[data-theme=dark] .domingos [data-estado=preparado] .bolha,
+  :root[data-theme=dark] .domingos [data-estado=realizado] .bolha{color:#0b1220}
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme=light]) .domingos [data-estado=preparado] .bolha,
+    :root:not([data-theme=light]) .domingos [data-estado=realizado] .bolha{color:#0b1220}
+  }
+  .domingos [data-estado=preparado] .rot,
+  .domingos [data-estado=realizado] .rot{color:var(--viva)}
+  /* Hoje ganha anel, não cor: cor aqui já significa preparado. */
+  .domingos [data-hoje]{box-shadow:0 0 0 2px var(--acento)}
+
+  /* O próximo culto é o CTA da página — cartão inteiro em acento fraco. */
+  .proximo{background:var(--acento-fraco);border-color:transparent}
+  .proximo .corpo{padding:18px}
+  .proximo .rot{display:flex;align-items:center;gap:7px;color:var(--acento);
+      font-size:11.5px;font-weight:700;letter-spacing:.09em;
+      text-transform:uppercase}
+  .proximo .rot .icone{width:16px;height:16px}
+  .proximo h2{margin-top:9px;font-size:clamp(20px,2.6vw,25px);
+      letter-spacing:-.025em}
+  .proximo .fatos{display:flex;flex-wrap:wrap;gap:8px 18px;margin:12px 0 0;
+      color:var(--muted);font-size:13.5px;font-weight:600}
+  .proximo .fatos span{display:inline-flex;align-items:center;gap:6px}
+  .proximo .fatos .icone{width:16px;height:16px}
+  .proximo .selo{display:flex;align-items:flex-start;gap:10px;margin-top:16px;
+      padding:12px 14px;border-radius:12px;background:var(--aviso-fraco)}
+  .proximo .selo b{display:block;color:var(--aviso);font-size:13.5px}
+  .proximo .selo span{display:block;margin-top:2px;color:var(--muted);
+      font-size:13px}
+  .proximo .selo[data-estado=pronto]{background:var(--viva-fraca)}
+  .proximo .selo[data-estado=pronto] b{color:var(--viva)}
+  .proximo .btn-grande{width:100%;margin-top:16px}
+
+  /* ---- ações rápidas */
+  .acoes-rapidas{display:grid;gap:12px;margin-top:14px;
+      grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .acao{display:flex;align-items:center;gap:13px;padding:15px;
+      border-radius:14px;border:1px solid var(--line);background:var(--surface);
+      box-shadow:var(--sombra);text-decoration:none;text-align:left;width:100%}
+  /* No tablet o \`auto-fit\` daria três cards e um órfão na segunda linha. */
+  @media (min-width:700px) and (max-width:1050px){
+    .acoes-rapidas{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  .acao:hover{border-color:var(--acento)}
+  .acao .bolha{flex:0 0 auto;width:42px;height:42px;border-radius:12px;
+      display:grid;place-items:center;background:var(--raised);
+      color:var(--muted)}
+  .acao .bolha .icone{width:20px;height:20px}
+  .acao b{display:block;font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .acao span{display:block;margin-top:2px;color:var(--muted);font-size:12.5px}
+  .acao[data-tinta=acento] .bolha{background:var(--acento-fraco);
+      color:var(--acento)}
+  .acao[data-tinta=viva] .bolha{background:var(--viva-fraca);color:var(--viva)}
+  /* Ação que ainda não existe não é botão morto nem promessa em azul: fica
+     apagada e diz que vem depois. Ver o comentário de \`ACOES_RAPIDAS\`. */
+  .acao[aria-disabled=true]{opacity:.55;cursor:default;box-shadow:none}
+  .acao[aria-disabled=true]:hover{border-color:var(--line)}
+
+  /* ---- últimos cultos */
+  .tabela-cultos{width:100%;border-collapse:collapse;font-size:14px}
+  .tabela-cultos th{padding:10px 16px;text-align:left;color:var(--muted);
+      font-size:11px;font-weight:700;letter-spacing:.08em;
+      text-transform:uppercase;border-bottom:1px solid var(--line)}
+  .tabela-cultos td{padding:13px 16px;border-bottom:1px solid var(--line)}
+  .tabela-cultos tr:last-child td{border-bottom:0}
+  .tabela-cultos tbody tr:hover{background:var(--raised)}
+  .tabela-cultos .nome{font-weight:600}
+  .tabela-cultos .fim{text-align:right;white-space:nowrap}
+  .tabela-cultos .btn{min-height:36px;padding:0 14px;font-size:13px}
+  .tabela-cultos td.data{white-space:nowrap;font-variant-numeric:tabular-nums}
+  /* "5 músicas" quebrando em duas linhas engorda a linha inteira no celular. */
+  .tabela-cultos td.qtd{white-space:nowrap;color:var(--muted)}
+  /* Estreito: a coluna "Nome" repete o que a data já diz, e é a primeira a
+     sair. Rolagem horizontal de tabela na home seria armadilha no palco. */
+  @media (max-width:700px){
+    .tabela-cultos .corta{display:none}
+    .tabela-cultos th,.tabela-cultos td{padding-left:14px;padding-right:14px}
+  }
+  .selo-status{display:inline-flex;align-items:center;gap:6px;min-height:26px;
+      padding:0 10px;border-radius:999px;background:var(--raised);
+      color:var(--muted);font-size:12.5px;font-weight:600;white-space:nowrap}
+  .selo-status[data-estado=realizado]{background:var(--viva-fraca);
+      color:var(--viva)}
+  .ver-todos{display:inline-flex;align-items:center;gap:6px;
+      color:var(--acento);font-size:13.5px;font-weight:600;text-decoration:none}
+  .ver-todos:hover{text-decoration:underline}
+  .cartao-topo .fim{margin-left:auto}
+  @media (pointer:coarse),(max-width:699px){
+    .tabela-cultos .btn{min-height:44px}
+    .domingos a{min-height:112px}
+  }
+
   /* ------------------------------------------------ configurações */
   .prefs{display:grid;gap:14px;margin-top:14px}
   .pref{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:15px;
@@ -303,6 +573,51 @@ const CSS_PREPARO = `
   .pref .quem b{display:block;font-size:15px}
   .pref .quem span{display:block;margin-top:2px;color:var(--muted);font-size:13px}
   .pref .grupo{display:flex;gap:6px}
+
+  /* ------------------------------------------------ atalhos */
+  .atalhos{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+  .atalhos li{display:flex;align-items:center;gap:8px;font-size:13.5px}
+  .atalhos li span{color:var(--muted)}
+  .atalhos+.aviso{margin-top:12px}
+  .atalhos kbd{display:inline-grid;place-items:center;min-width:26px;height:26px;
+      padding:0 6px;border-radius:6px;background:var(--raised);
+      border:1px solid var(--line);border-bottom-width:2px;color:var(--ink);
+      font-family:ui-monospace,Menlo,monospace;font-size:12.5px;font-weight:700}
+
+  /* ---------------------------------------------- alvo de toque
+     Última camada do arquivo de propósito: ela sobrescreve os tamanhos
+     definidos acima, e só ganha isso ficando por último.
+
+     Piso de 44px onde o dedo é o ponteiro. O critério é \`pointer:coarse\`
+     antes da largura, porque o uso real inclui tablet na estante — largo, e
+     mesmo assim sem precisão de mouse. No mouse os alvos continuam menores
+     (30–34px, acima do mínimo de 24px da WCAG 2.2): é a mesma regra que o
+     produto escreveu, "alvo de TOQUE de 44px", aplicada onde há toque.
+
+     Não é enfeite. A 30px o \`−\` do tom ficava a 4px do \`↑\` da ordem — e
+     errar o alvo trocava a ORDEM do culto quando se queria trocar o TOM.
+     Dois erros diferentes, silenciosos, encostados. Por isso a folga entre
+     os dois grupos cresce junto com o alvo. */
+  @media (pointer:coarse),(max-width:699px){
+    .setlist .tom{gap:6px}
+    /* Sem \`flex:0 0 auto\` o flex espreme os passos quando a faixa aperta:
+       medido 11px de largura a 360px, com a altura certa de 44. */
+    .setlist .tom .passo{flex:0 0 auto;width:44px;height:44px}
+    .setlist .tom .pastilha{min-width:54px;min-height:44px}
+    .setlist .acoes{gap:6px}
+    .setlist .acoes a,.setlist .acoes span{width:44px;height:44px;font-size:16px}
+    .rascunho .btn,.cultos li>.btn{min-height:44px}
+    .adicionar summary{min-height:44px}
+    .passos .btn{min-height:44px}
+    .grupo-fonte button{min-width:44px;min-height:44px}
+    .escolher a{padding:12px 8px}
+    .menu-lista a{min-height:48px}
+  }
+  /* Na faixa larga com dedo os dois grupos voltam para a mesma linha, e a
+     divisória de 1px não basta para separar alvos de 44px. */
+  @media (pointer:coarse) and (min-width:700px){
+    .setlist .acoes{margin-left:18px;padding-left:16px}
+  }
 }
 `;
 
@@ -327,15 +642,97 @@ const SCRIPT_MENU_TOM = `<script>
   function fechar(exceto){
     todos().forEach(function(d){if(d!==exceto)d.open=false});
   }
+  // Com um menu aberto, as demais linhas saem do alcance: \`inert\` tira do
+  // clique, do foco e do leitor de tela de uma vez só. Sem isto, o \`+\` da
+  // música vizinha continuava clicável ao lado do menu aberto — e transpor a
+  // música errada é o tipo de erro que só se descobre no culto.
+  function isolar(){
+    document.querySelectorAll('ol.setlist').forEach(function(ol){
+      var aberto=ol.querySelector('details.menu-tom[open]');
+      var dono=aberto?aberto.closest('li'):null;
+      if(dono)ol.setAttribute('data-menu-aberto','');else ol.removeAttribute('data-menu-aberto');
+      Array.prototype.forEach.call(ol.children,function(li){
+        if(li===dono)li.setAttribute('data-menu-dono','');else li.removeAttribute('data-menu-dono');
+        // \`inert\` não é suportado em todo navegador da banda; onde não for,
+        // o véu e o recuo continuam valendo e nada quebra.
+        try{li.inert=!!dono&&li!==dono}catch(e){}
+      });
+      // No estreito a folha sobe do rodapé e tapava a própria linha dona —
+      // ficar sem ver de que música é o menu é pior que não ver as vizinhas.
+      // Trazer a linha para o alto deixa ela e as seguintes à vista acima da
+      // folha. Na faixa larga o menu abre ao lado e não há o que rolar.
+      if(dono&&window.matchMedia('(max-width:699px)').matches){
+        var suave=!window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+        try{dono.scrollIntoView({block:'start',behavior:suave?'smooth':'auto'})}
+        catch(e){dono.scrollIntoView(true)}
+      }
+    });
+  }
   document.addEventListener('toggle',function(e){
     var d=e.target;
-    if(d.classList&&d.classList.contains('menu-tom')&&d.open)fechar(d);
+    if(!d.classList||!d.classList.contains('menu-tom'))return;
+    if(d.open)fechar(d);
+    isolar();
   },true);
   document.addEventListener('click',function(e){
-    if(!e.target.closest('details.menu-tom'))fechar(null);
+    if(!e.target.closest('details.menu-tom')){fechar(null);isolar();}
   });
   document.addEventListener('keydown',function(e){
-    if(e.key==='Escape')fechar(null);
+    if(e.key==='Escape'){
+      // Devolve o foco para a pastilha que abriu: sair do menu pelo Escape e
+      // cair no começo da página é perder o lugar na setlist.
+      var aberto=document.querySelector('details.menu-tom[open]');
+      var alvo=aberto?aberto.querySelector('summary'):null;
+      fechar(null);isolar();
+      if(alvo)alvo.focus();
+    }
+  });
+})();
+</script>`;
+
+/**
+ * Atalhos de teclado da preparação.
+ *
+ * Preparar culto é trabalho de mesa, repetitivo, com as duas mãos livres — é
+ * exatamente o caso em que atalho paga. Antes eram 33 paradas de Tab do
+ * título da primeira música até a ação principal do cartão da direita.
+ *
+ * Cada atalho **aciona um link que já existe na página**: `j`/`k` são os
+ * mesmos passos da prévia, `[`/`]` são os mesmos `−`/`+` da música atual. Não
+ * há caminho novo, nem estado novo, nem nada que só funcione com JavaScript —
+ * quem não tem script continua clicando os mesmos links.
+ */
+const SCRIPT_ATALHOS = `<script>
+(function(){
+  function digitando(e){
+    var a=document.activeElement;
+    if(!a)return false;
+    var t=a.tagName;
+    return t==='INPUT'||t==='TEXTAREA'||t==='SELECT'||a.isContentEditable;
+  }
+  function ir(sel){
+    var a=document.querySelector(sel);
+    // \`<span class=desligado>\` não tem href: no fim da setlist a tecla não
+    // faz nada, em vez de recarregar a mesma página.
+    if(a&&a.href)a.click();
+  }
+  document.addEventListener('keydown',function(e){
+    if(e.ctrlKey||e.metaKey||e.altKey||digitando(e))return;
+    // Menu de tom aberto tem as próprias teclas (Escape fecha); não competir.
+    if(document.querySelector('details.menu-tom[open]'))return;
+    var k=e.key;
+    if(k==='j'||k==='J'){e.preventDefault();ir('.passos a[data-passo=proxima]')}
+    else if(k==='k'||k==='K'){e.preventDefault();ir('.passos a[data-passo=anterior]')}
+    else if(k===']'){e.preventDefault();ir('.setlist li[data-atual=true] .tom .passo:last-of-type')}
+    else if(k==='['){e.preventDefault();ir('.setlist li[data-atual=true] .tom .passo:first-of-type')}
+    else if(k==='/'){
+      var cx=document.querySelector('details.adicionar');
+      var campo=document.querySelector('input[data-filtro]');
+      if(!campo)return;
+      e.preventDefault();
+      if(cx)cx.open=true;
+      campo.focus();campo.select();
+    }
   });
 })();
 </script>`;
@@ -501,6 +898,24 @@ function menuDeTom(
 }
 
 /**
+ * Um passo da navegação da prévia: link quando há para onde ir, `<span>`
+ * quando não há.
+ *
+ * O `<span>` não é detalhe de estilo — é o que tira o controle desligado do
+ * teclado e do leitor de tela. Mesmo idioma de `site/execucao.ts`.
+ */
+function passo(ativo: boolean, href: string, rotulo: string, qual: 'anterior' | 'proxima'): string {
+  // `data-passo` em vez de `:first-of-type`: quando um dos dois vira `<span>`,
+  // o `<a>` restante passa a ser primeiro E último, e o atalho `k` andaria
+  // para a frente. O seletor tem que dizer qual é qual.
+  const atalho = qual === 'anterior' ? 'k' : 'j';
+  return ativo
+    ? `<a class=btn data-passo=${qual} title="${rotulo.replace(/&\w+;/g, '').trim()} — atalho: ${atalho}" ` +
+      `href="${esc(href)}">${rotulo}</a>`
+    : `<span class="btn desligado" data-passo=${qual} aria-disabled=true>${rotulo}</span>`;
+}
+
+/**
  * A tela principal: o culto atual, sua setlist e a música atual.
  *
  * `momento` (Ofertório, Apelo / Ceia) aparece aqui e **só aqui** entre as
@@ -552,20 +967,25 @@ export function paginaCulto(
         `<a class=nome href="${esc(linkCulto(culto, entradas, i))}">` +
         `<b>${esc(e.musica.titulo)}</b>` +
         `<span>${papel}${esc(e.musica.artista)}</span></a>` +
+        '<span class=controles>' +
         '<span class=tom>' +
         `<a class=passo href="${esc(linkCulto(culto, comTom(entradas, i, passoDeTom(e.tom, -1)), atual))}" ` +
-        `aria-label="Descer meio tom">&minus;</a>` +
+        `aria-label="Descer meio tom" title="Descer meio tom${eAtual ? ' — atalho: [' : ''}">&minus;</a>` +
         menuDeTom(culto, entradas, i, atual) +
         `<a class=passo href="${esc(linkCulto(culto, comTom(entradas, i, passoDeTom(e.tom, 1)), atual))}" ` +
-        `aria-label="Subir meio tom">+</a>` +
+        `aria-label="Subir meio tom" title="Subir meio tom${eAtual ? ' — atalho: ]' : ''}">+</a>` +
         '</span>' +
+        // Tom e ações num envoltório só: no estreito ele é a faixa de
+        // controles (flex, `space-between`, folga garantida entre os dois
+        // grupos); a partir de 700px vira `display:contents` e os dois voltam
+        // a ser itens da grade da linha, como sempre foram.
         '<span class=acoes>' +
         acao('Subir na ordem', '&uarr;', i > 0 ? trocar(entradas, i, i - 1) : null, i > 0 && atual === i ? i - 1 : atual) +
         acao('Descer na ordem', '&darr;', i < entradas.length - 1 ? trocar(entradas, i, i + 1) : null, i < entradas.length - 1 && atual === i ? i + 1 : atual) +
         // No culto do repertório a última música não sai — a setlist tocada
         // não fica vazia. No culto novo sai: montar é errar e desfazer.
         acao('Tirar do culto', '&times;', entradas.length > 1 || culto.novo ? semEsta : null, atualDepois, 'remover') +
-        '</span></li>'
+        '</span></span></li>'
       );
     })
     .join('');
@@ -580,16 +1000,23 @@ export function paginaCulto(
       : '<details class=adicionar><summary class="btn">+ Adicionar música</summary>' +
         '<div class=caixa>' +
         '<input class=campo type=search data-filtro=escolher autocomplete=off ' +
-        'placeholder="Filtrar por título ou artista" aria-label="Filtrar músicas">' +
+        'placeholder="Filtrar por título, artista ou nº do hino" aria-label="Filtrar músicas">' +
         '<ul class=escolher id=escolher>' +
         candidatas
-          .map(
-            (m) =>
-              `<li data-busca="${esc(`${m.titulo} ${m.artista}`.toLowerCase())}">` +
+          .map((m) => {
+            // Hino entra no culto pelo mesmo caminho de qualquer música — o
+            // que muda é como se pergunta por ele. Sem a referência aqui,
+            // digitar "422" não acha nada, e o número é justamente o que quem
+            // monta o culto tem na mão ("o pastor pediu o 422").
+            const referencia = m.fonte && m.numero ? `${m.fonte} ${m.numero}` : '';
+            const legenda = [m.artista, referencia].filter(Boolean).join(' · ');
+            return (
+              `<li data-busca="${esc(`${m.titulo} ${m.artista} ${referencia}`.trim().toLowerCase())}">` +
               `<a href="${esc(linkCulto(culto, [...entradas, { slug: m.slug, tom: m.tom, musica: m }], atual))}">` +
-              `<span class=nome><b>${esc(m.titulo)}</b><span>${esc(m.artista)}</span></span>` +
-              `<span class=pastilha>${esc(m.tom)}</span></a></li>`,
-          )
+              `<span class=nome><b>${esc(m.titulo)}</b><span>${esc(legenda)}</span></span>` +
+              `<span class=pastilha>${esc(m.tom)}</span></a></li>`
+            );
+          })
           .join('') +
         '</ul>' +
         '<p class=aviso data-vazio=escolher hidden>Nenhuma música com esse nome.</p>' +
@@ -610,11 +1037,19 @@ export function paginaCulto(
       '</div>' +
       `<div class="cifra previa">${fragmentoCifra(atualEntrada.musica, atualEntrada.tom)}</div>` +
       '<nav class=passos aria-label="Navegar na setlist">' +
-      `<a class="btn${atual === 0 ? ' desligado' : ''}" href="${esc(linkCulto(culto, entradas, Math.max(0, atual - 1)))}"` +
-      `${atual === 0 ? ' aria-disabled=true' : ''}>&larr; Anterior</a>` +
+      // Desligado é `<span>`, não `<a aria-disabled>`. `pointer-events:none`
+      // bloqueia o mouse e **não** o teclado: quem tabulava chegava no
+      // "Anterior" apagado, apertava Enter e recarregava a página. É também o
+      // idioma que `site/execucao.ts` já usava — eram dois jeitos de dizer a
+      // mesma coisa no mesmo produto.
+      passo(atual > 0, linkCulto(culto, entradas, atual - 1), '&larr; Anterior', 'anterior') +
       `<span class=conta>${String(atual + 1).padStart(2, '0')} / ${String(entradas.length).padStart(2, '0')}</span>` +
-      `<a class="btn${atual >= entradas.length - 1 ? ' desligado' : ''}" href="${esc(linkCulto(culto, entradas, Math.min(entradas.length - 1, atual + 1)))}"` +
-      `${atual >= entradas.length - 1 ? ' aria-disabled=true' : ''}>Próxima &rarr;</a>` +
+      passo(
+        atual < entradas.length - 1,
+        linkCulto(culto, entradas, atual + 1),
+        'Próxima &rarr;',
+        'proxima',
+      ) +
       '</nav></div>'
     : '<p class=vazio>Setlist vazia. Adicione uma música para começar.</p>';
 
@@ -675,7 +1110,7 @@ export function paginaCulto(
     css: CSS_PAINEL,
     miolo,
     largo: true,
-    scripts: SCRIPT_FILTRO + SCRIPT_MENU_TOM + scriptCulto(culto, canonica),
+    scripts: SCRIPT_FILTRO + SCRIPT_MENU_TOM + SCRIPT_ATALHOS + scriptCulto(culto, canonica),
   });
 }
 
@@ -887,21 +1322,34 @@ function scriptCulto(culto: Culto, canonica: string): string {
  * "Tema" é o campo `momento` do `.cifra` — o vocabulário que o acervo já tem
  * (adoracao, celebracao). Poucas músicas o trazem hoje, e a tela diz isso em
  * vez de fingir que o filtro cobre as 343.
+ *
+ * Hino de hinário entra pelo campo de NOME, pelo número: o acervo tem hinos do
+ * HCC, e "hino 25" é como eles são chamados. Ver `fonte`/`numero` em
+ * `site/repertorio.ts`.
  */
 export function paginaBiblioteca(rep: Repertorio): string {
   const comTema = rep.todas.filter((m) => m.momento).length;
 
   const itens = rep.todas
-    .map(
-      (m) =>
-        `<li data-titulo="${esc(m.titulo)}" data-artista="${esc(m.artista)}" ` +
+    .map((m) => {
+      // Num hinário o número É o nome: quem procura "hino 25" digita 25, não
+      // "Tu és Fiel". Por isso ele entra no `data-titulo` (o campo "Nome da
+      // música"), e não num filtro novo — hino é o mesmo objeto que música,
+      // só com um segundo jeito de ser chamado.
+      const referencia = m.fonte && m.numero ? `${m.fonte} ${m.numero}` : '';
+      // A linha de baixo do cartão mostra o artista; num hino ela está vazia,
+      // e é onde a referência do hinário cabe sem inventar cromo novo.
+      const legenda = [m.artista, referencia].filter(Boolean).join(' · ');
+      return (
+        `<li data-titulo="${esc(`${m.titulo} ${referencia}`.trim())}" data-artista="${esc(m.artista)}" ` +
         `data-tema="${esc(m.momento ?? '')}" ` +
-        `data-busca="${esc(`${m.titulo} ${m.artista}`)}" data-tom-origem="${esc(m.tom)}">` +
+        `data-busca="${esc(`${m.titulo} ${m.artista} ${referencia}`.trim())}" data-tom-origem="${esc(m.tom)}">` +
         `<a href="/musica/${esc(m.slug)}">` +
         `<span class=nome><b>${esc(m.titulo)}</b>` +
-        `<span>${esc(m.artista)}${m.momento ? ` · ${esc(m.momento)}` : ''}</span></span>` +
-        `<span class=pastilha>${esc(m.tom)}</span></a></li>`,
-    )
+        `<span>${esc(legenda)}${m.momento ? ` · ${esc(m.momento)}` : ''}</span></span>` +
+        `<span class=pastilha>${esc(m.tom)}</span></a></li>`
+      );
+    })
     .join('');
 
   // Os chips filtram por TOM DE ORIGEM, que é dado que existe em toda música.
@@ -919,7 +1367,7 @@ export function paginaBiblioteca(rep: Repertorio): string {
     `<h1 class=secao-tit>Músicas<em>${rep.todas.length} no repertório</em></h1>` +
     '<div class=cartao><div class=busca-topo>' +
     '<div class=campos-busca>' +
-    campo('titulo', 'Nome da música', 'Ex.: O Grande Eu Sou') +
+    campo('titulo', 'Nome da música ou nº do hino', 'Ex.: O Grande Eu Sou, ou 25') +
     campo('tema', 'Tema', 'Ex.: adoracao') +
     campo('artista', 'Cantor / banda', 'Ex.: Gabriela Rocha') +
     '</div>' +
@@ -937,6 +1385,81 @@ export function paginaBiblioteca(rep: Repertorio): string {
     ativo: '/musicas',
     css: CSS_PAINEL,
     miolo,
+    scripts: SCRIPT_FILTRO,
+  });
+}
+
+// -------------------------------------------------------------- hinário
+
+/**
+ * O hinário: o mesmo acervo, na ordem do livro.
+ *
+ * Existe como tela separada por uma razão só, e ela não é organizacional: um
+ * hino é chamado pelo **número**, não pelo nome — "vamos no 422". `/musicas`
+ * ordena por título, que é a ordem certa para música de banda e a errada para
+ * hino. Duas ordens do mesmo acervo são dois destinos.
+ *
+ * Por isso a tela não repete os três campos da biblioteca. Tem um campo só, e
+ * ele aceita o número — que é como a pergunta chega ("temos o 422?").
+ *
+ * **Não há botão de pôr no culto aqui, de propósito.** O culto não tem URL
+ * fixa: ele é a setlist codificada na querystring (`docs/site.md`), então uma
+ * tela que não sabe qual culto está aberto não tem para onde adicionar. O
+ * caminho de acrescentar hino ao culto é o mesmo de qualquer música — o
+ * "+ Adicionar música" de dentro do culto, que aceita o número do hino no
+ * filtro. Um segundo caminho aqui seria um botão que às vezes não tem destino.
+ */
+export function paginaHinario(rep: Repertorio): string {
+  // Com um hinário só, repetir "HCC" em toda linha não distingue nada — e o
+  // número já está na coluna ao lado, em corpo maior. A linha de baixo só
+  // ganha texto quando há mais de um livro no acervo, que é quando ela passa
+  // a responder "de qual hinário?".
+  const variosLivros = new Set(rep.hinos.map((m) => m.fonte)).size > 1;
+
+  const itens = rep.hinos
+    .map((m) => {
+      const referencia = `${m.fonte} ${m.numero}`;
+      return (
+        `<li data-busca="${esc(`${m.titulo} ${referencia}`)}">` +
+        `<a href="/musica/${esc(m.slug)}">` +
+        `<span class=num-hino>${esc(m.numero!)}</span>` +
+        `<span class=nome><b>${esc(m.titulo)}</b>` +
+        (variosLivros ? `<span>${esc(m.fonte!)}</span>` : '') +
+        '</span>' +
+        `<span class=pastilha>${esc(m.tom)}</span></a></li>`
+      );
+    })
+    .join('');
+
+  // Nenhum hino cifrado ainda é o estado normal de uma igreja que está
+  // começando — a tela diz o que fazer, não pede desculpa.
+  const vazio =
+    '<div class=cartao><p class=vazio style="padding:36px 20px">' +
+    'Nenhum hino no acervo ainda. Um <code>.cifra</code> entra no hinário quando ' +
+    'declara de que livro veio e o número dele:<br><br>' +
+    '<code>fonte: HCC</code><br><code>numero: 422</code>' +
+    '</p></div>';
+
+  const lista =
+    '<div class=cartao><div class=busca-topo>' +
+    '<label class=campo-busca>Número do hino ou título' +
+    '<input class=campo type=search data-filtro=hinos autocomplete=off ' +
+    'placeholder="Ex.: 422, ou Grandioso és Tu" aria-label="Número do hino ou título"></label>' +
+    '</div>' +
+    `<ul class=lista id=hinos>${itens}</ul>` +
+    '<p class=vazio data-vazio=hinos hidden style="padding:28px 16px">Esse hino não está no acervo.</p>' +
+    '</div>' +
+    `<p class=contagem><span data-conta=hinos>${rep.hinos.length}</span> de ${rep.hinos.length} ` +
+    `${rep.hinos.length === 1 ? 'hino cifrado' : 'hinos cifrados'}. ` +
+    'Um hino entra no culto por "+ Adicionar música", digitando o número.</p>';
+
+  return paginaPainel({
+    titulo: 'Hinário',
+    ativo: '/hinario',
+    css: CSS_PAINEL,
+    miolo:
+      `<h1 class=secao-tit>Hinário<em>${rep.hinos.length} no acervo</em></h1>` +
+      (rep.hinos.length === 0 ? vazio : lista),
     scripts: SCRIPT_FILTRO,
   });
 }
@@ -1019,8 +1542,10 @@ function blocoModalCulto(erros: readonly string[], rascunho: RascunhoCulto): str
   return (
     '<dialog class=modal id=dlg-culto aria-labelledby=tit-criar>' +
     '<div class=modal-topo><h2 id=tit-criar>Novo culto</h2>' +
-    '<p class=sub>Escreva a setlist agora ou monte depois, no painel. O culto ' +
-    'fica neste aparelho e no link — o servidor não guarda nada.</p></div>' +
+    // Como o culto é guardado (aparelho + link, sem estado no servidor) é
+    // assunto de Configurações, não da tela de quem está marcando um culto.
+    '<p class=sub>Escreva a setlist agora ou monte depois, no painel. ' +
+    'O culto fica neste aparelho e no link que você compartilhar.</p></div>' +
     (erros.length
       ? `<div class=erro role=alert><ul>${erros.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>`
       : '') +
@@ -1043,7 +1568,7 @@ function blocoModalCulto(erros: readonly string[], rascunho: RascunhoCulto): str
  */
 function blocoListaLocal(id: 'futuros' | 'meus', titulo: string, vazio: string): string {
   return (
-    `<section class=lista-cultos id=${id}${id === 'meus' ? ' hidden' : ''}>` +
+    `<section class=lista-cultos id=${id} hidden>` +
     `<h2 class=secao-tit>${esc(titulo)}<em id=${id}-conta></em></h2>` +
     `<ul class=cultos id=${id}-lista></ul>` +
     `<p class=vazio id=${id}-vazio>${esc(vazio)}</p>` +
@@ -1112,7 +1637,9 @@ const SCRIPT_CULTOS_LOCAIS = `<script>
     var lista=document.getElementById(id+'-lista');
     var vazio=document.getElementById(id+'-vazio');
     var conta=document.getElementById(id+'-conta');
-    if(id==='meus')secao.hidden=cultos.length===0;
+    // Lista vazia é seção que some: a home não mostra caixa vazia com texto
+    // explicando que está vazia — quem não marcou nada tem a grade do mês.
+    secao.hidden=cultos.length===0;
     if(conta)conta.textContent=cultos.length?cultos.length+' '+rotulo:'';
     if(vazio)vazio.hidden=cultos.length>0;
     lista.innerHTML='';
@@ -1131,19 +1658,36 @@ const SCRIPT_CULTOS_LOCAIS = `<script>
 })();
 </script>`;
 
-/** Abre o modal. Sem `showModal` (navegador antigo), o diálogo abre na página. */
+/**
+ * Abre o modal. Sem `showModal` (navegador antigo), o diálogo abre na página.
+ *
+ * Qualquer `[data-abrir-culto]` abre: o botão de "Novo culto", o CTA do
+ * próximo culto e cada domingo da grade do mês. Quem traz `data-data` já
+ * chega com a data preenchida — clicar em 20/09 e ter que digitar 20/09 é o
+ * tipo de trabalho que a grade existe para eliminar. Os que são `<a>` têm
+ * `href` de verdade e continuam funcionando sem script.
+ */
 const SCRIPT_MODAL_CULTO = `<script>
 (function(){
   var dlg=document.getElementById('dlg-culto');
-  var abrir=document.getElementById('abrir-culto');
-  if(!dlg||!abrir)return;
-  abrir.hidden=false;
-  function mostrar(){
+  var gatilhos=document.querySelectorAll('[data-abrir-culto]');
+  if(!dlg||!gatilhos.length)return;
+  function mostrar(data){
+    var d=dlg.querySelector('input[name=data]');
+    if(d&&data)d.value=data;
     if(dlg.showModal)dlg.showModal();else dlg.setAttribute('open','');
     var campo=dlg.querySelector('input[name=nome]');
     if(campo)campo.focus();
   }
-  abrir.addEventListener('click',mostrar);
+  Array.prototype.forEach.call(gatilhos,function(g){
+    // Botão nasce escondido porque <dialog> não abre sem script; link não,
+    // porque o href dele leva ao formulário mesmo sem JavaScript.
+    if(g.tagName==='BUTTON')g.hidden=false;
+    g.addEventListener('click',function(e){
+      e.preventDefault();
+      mostrar(g.getAttribute('data-data'));
+    });
+  });
   dlg.querySelectorAll('[data-fechar]').forEach(function(b){
     b.hidden=false;
     b.addEventListener('click',function(){
@@ -1156,51 +1700,416 @@ const SCRIPT_MODAL_CULTO = `<script>
 })();
 </script>`;
 
+const DIAS_SEMANA = [
+  'Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira',
+  'Quinta-feira', 'Sexta-feira', 'Sábado',
+];
+
+/** A data como o `<input type=date>` e o índice do aparelho a escrevem. */
+function iso(d: Date): string {
+  const dois = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${dois(d.getMonth() + 1)}-${dois(d.getDate())}`;
+}
+
 /**
- * A tela inicial: a agenda de cultos.
+ * Os domingos do mês de `agora` — quatro ou cinco, conforme o mês cai.
  *
- * Era um redirecionamento para o culto mais recente do repertório, o que
- * deixava o culto **aberto neste aparelho** inalcançável pelo menu — o
- * servidor não sabe que ele existe. Agora a tela lista o que vem aí, oferece
- * abrir um culto novo, e mantém o último culto tocado a um toque.
+ * Nada de hardcoded: o mês, o ano e a quantidade de domingos saem do relógio.
+ * O culto de domingo é a regra da casa; o que foge dela (sexta, ensaio) entra
+ * como culto marcado e aparece na lista de próximos, não nesta grade.
+ */
+function domingosDoMes(agora: Date): { iso: string; dia: number; mes: number; ordinal: number }[] {
+  const ano = agora.getFullYear();
+  const mes = agora.getMonth();
+  const domingos = [];
+  const d = new Date(ano, mes, 1);
+  d.setDate(1 + ((7 - d.getDay()) % 7));
+  while (d.getMonth() === mes) {
+    domingos.push({
+      iso: iso(d),
+      dia: d.getDate(),
+      mes: mes + 1,
+      ordinal: (mes + 1) * 100 + d.getDate(),
+    });
+    d.setDate(d.getDate() + 7);
+  }
+  return domingos;
+}
+
+/** O próximo domingo a partir de `agora` — hoje, se hoje for domingo. */
+function proximoDomingo(agora: Date): Date {
+  const d = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  return d;
+}
+
+/** "Domingo, 20 de setembro" — sem ano, que é o que o rótulo de culto faz. */
+function porExtenso(d: Date): string {
+  return `${DIAS_SEMANA[d.getDay()]}, ${d.getDate()} de ${NOME_MES[d.getMonth()]}`;
+}
+
+const DOIS = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * A grade dos domingos do mês, com quantos já estão prontos.
+ *
+ * O que o **servidor** sabe: quais domingos já foram tocados — o repertório
+ * casa por dia e mês (o nome do culto não carrega ano, ver `site/cultos.ts`).
+ * O que só o **aparelho** sabe: quais foram preparados aqui. Por isso a grade
+ * sai do servidor com o que é fato e o `SCRIPT_HOME` a completa; sem
+ * JavaScript ela continua correta, só não conhece os cultos deste aparelho.
+ *
+ * Domingo pendente abre o formulário de novo culto **com a data pronta** —
+ * clicar em 20/09 e ter que digitar 20/09 seria trabalho inventado.
+ */
+function cartaoMes(rep: Repertorio, agora: Date): string {
+  const domingos = domingosDoMes(agora);
+  const hoje = iso(agora);
+  const tocados = new Set(rep.cultos.map((c) => c.ordinal));
+  const prontos = domingos.filter((d) => tocados.has(d.ordinal)).length;
+
+  const celulas = domingos
+    .map((d) => {
+      const realizado = tocados.has(d.ordinal);
+      const estado = realizado ? 'realizado' : 'pendente';
+      const rotulo = realizado ? 'Realizado' : 'Pendente';
+      const culto = realizado ? rep.cultos.find((c) => c.ordinal === d.ordinal) : undefined;
+      const destino = culto
+        ? `/culto/${segmentoCulto(culto)}`
+        : `/culto/novo?data=${d.iso}`;
+      const gatilho = culto ? '' : ` data-abrir-culto data-data="${d.iso}"`;
+      return (
+        `<a href="${destino}" data-dia data-data="${d.iso}" data-estado=${estado}` +
+        (d.iso === hoje ? ' data-hoje' : '') +
+        `${gatilho} aria-label="${DOIS(d.dia)}/${DOIS(d.mes)} — ${rotulo}">` +
+        '<span class=bolha aria-hidden=true>✓</span>' +
+        `<b>${DOIS(d.dia)}/${DOIS(d.mes)}</b>` +
+        `<span class=rot>${rotulo}</span></a>`
+      );
+    })
+    .join('');
+
+  const mes = `${NOME_MES[agora.getMonth()]} de ${agora.getFullYear()}`;
+  const pct = domingos.length ? Math.round((prontos / domingos.length) * 100) : 0;
+  return (
+    '<section class="cartao mes" id=mes>' +
+    `<div class=mes-topo><div class=quem><h2>${esc(mes)}</h2>` +
+    '<p class=sub>Cultos do mês (todo domingo)</p></div>' +
+    `<div class=conta><b id=mes-conta>${prontos} de ${domingos.length} preparados</b></div></div>` +
+    `<div class=barra role=presentation><i id=mes-barra style="width:${pct}%"></i></div>` +
+    `<div class=domingos id=mes-domingos>${celulas}</div>` +
+    '</section>'
+  );
+}
+
+/**
+ * O próximo culto — o principal CTA da página.
+ *
+ * O servidor só sabe apontar o próximo domingo; se ele já está preparado, e
+ * com quantas músicas, é o `SCRIPT_HOME` que diz, porque essa resposta mora no
+ * aparelho. **Horário e número de músicos não aparecem**: não existem no
+ * modelo (`site/cultos.ts`), e a home não inventa fato para encher cartão.
+ */
+function cartaoProximo(rep: Repertorio, agora: Date): string {
+  const d = proximoDomingo(agora);
+  const data = iso(d);
+  // O domingo que já está no repertório é um culto que existe — dizer "ainda
+  // não preparado" ao lado da grade que o mostra pronto seria a home se
+  // contradizendo em dois cartões vizinhos.
+  const pronto = rep.cultos.find((c) => c.ordinal === (d.getMonth() + 1) * 100 + d.getDate());
+  const n = pronto?.entradas.length ?? 0;
+
+  const fatos = pronto
+    ? [pronto.periodo, `${n} ${n === 1 ? 'música' : 'músicas'}`].filter(Boolean)
+    : [];
+
+  return (
+    `<section class="cartao proximo" id=proximo data-iso="${data}"` +
+    (pronto ? ' data-servidor=1' : '') +
+    '><div class=corpo>' +
+    `<span class=rot>${icone('agenda')}Próximo culto</span>` +
+    `<h2 id=prox-quando>${esc(porExtenso(d))}</h2>` +
+    `<div class=fatos id=prox-fatos${fatos.length ? '' : ' hidden'}>` +
+    fatos.map((f) => `<span>${esc(f!)}</span>`).join('') +
+    '</div>' +
+    `<div class=selo id=prox-selo data-estado=${pronto ? 'pronto' : 'pendente'}>` +
+    `<div><b id=prox-selo-tit>${pronto ? 'Culto preparado' : 'Ainda não preparado'}</b>` +
+    `<span id=prox-selo-sub>${
+      pronto
+        ? 'Confira a ordem ou abra no celular para tocar.'
+        : 'Monte o repertório e leve o link para o palco.'
+    }</span></div></div>` +
+    (pronto
+      ? `<a class="btn btn-forte btn-grande" id=prox-acao href="/culto/${segmentoCulto(pronto)}">` +
+        'Abrir culto <span aria-hidden=true>→</span></a>'
+      : `<a class="btn btn-forte btn-grande" id=prox-acao href="/culto/novo?data=${data}"` +
+        ` data-abrir-culto data-data="${data}">Preparar culto <span aria-hidden=true>→</span></a>`) +
+    '</div></section>'
+  );
+}
+
+/**
+ * As quatro ações rápidas.
+ *
+ * "Novo culto" é secundária de propósito: o sistema já conhece os domingos, e
+ * o caminho normal é clicar no domingo, não criar um culto do zero.
+ *
+ * **"Nova música" fica desabilitada** porque adicionar música ao acervo não
+ * existe: o acervo entra por importação (`docs/plano-camada-formato.md`) e
+ * cadastro na tela é sprint 2. Um card que abrisse qualquer outra coisa seria
+ * mentira, e um card ausente esconderia que a lacuna existe.
+ */
+function acoesRapidas(): string {
+  const card = (
+    corpo: string,
+    tinta: string,
+    ic: 'mais' | 'musicas' | 'buscar' | 'historico',
+    titulo: string,
+    sub: string,
+  ) =>
+    corpo
+      .replace('%tinta%', tinta)
+      .replace(
+        '%miolo%',
+        `<span class=bolha>${icone(ic)}</span>` +
+          `<span><b>${esc(titulo)}</b><span>${esc(sub)}</span></span>`,
+      );
+
+  const link = (href: string) => `<a class=acao data-tinta=%tinta% href="${href}">%miolo%</a>`;
+  return (
+    '<h2 class=secao-tit>Ações rápidas</h2>' +
+    '<div class=acoes-rapidas>' +
+    card(
+      '<button class=acao data-tinta=%tinta% id=abrir-culto type=button hidden data-abrir-culto>%miolo%</button>',
+      'acento',
+      'mais',
+      'Novo culto',
+      'Fora do domingo, ou um segundo culto',
+    ) +
+    card(
+      '<span class=acao data-tinta=%tinta% aria-disabled=true>%miolo%</span>',
+      'viva',
+      'musicas',
+      'Nova música',
+      'Em breve — o acervo entra por importação',
+    ) +
+    card(link('/musicas'), 'acento', 'buscar', 'Buscar música', 'Encontre no seu repertório') +
+    card(link('/cultos'), 'acento', 'historico', 'Cultos anteriores', 'Veja o histórico') +
+    '</div>'
+  );
+}
+
+/** Os últimos cultos tocados. Sem ano, porque o dado não tem (`cultos.ts`). */
+function tabelaUltimos(rep: Repertorio): string {
+  if (rep.cultos.length === 0) return '';
+  const linhas = rep.cultos
+    .slice(0, 5)
+    .map((c) => {
+      const dia = c.ordinal % 100;
+      const mes = (c.ordinal - dia) / 100;
+      const data = c.ordinal ? `${DOIS(dia)}/${DOIS(mes)}` : '—';
+      const nome = [c.rotulo, c.periodo].filter(Boolean).join(' · ');
+      const n = c.entradas.length;
+      return (
+        `<tr><td class=data>${esc(data)}</td>` +
+        `<td class="nome corta">${esc(nome)}</td>` +
+        `<td class=qtd>${n} ${n === 1 ? 'música' : 'músicas'}</td>` +
+        '<td><span class=selo-status data-estado=realizado>' +
+        '<span aria-hidden=true>✓</span>Realizado</span></td>' +
+        `<td class=fim><a class=btn href="/culto/${segmentoCulto(c)}">Abrir</a></td></tr>`
+      );
+    })
+    .join('');
+
+  return (
+    '<section class="cartao ultimos">' +
+    '<div class=cartao-topo><div class=quem><h2>Últimos cultos</h2></div>' +
+    '<a class="ver-todos fim" href="/cultos">Ver todos <span aria-hidden=true>→</span></a></div>' +
+    '<table class=tabela-cultos><thead><tr>' +
+    '<th>Data</th><th class=corta>Nome</th><th>Músicas</th><th>Status</th>' +
+    '<th class=fim><span class=so-leitor>Ação</span></th>' +
+    `</tr></thead><tbody>${linhas}</tbody></table>` +
+    '</section>'
+  );
+}
+
+/**
+ * Completa a home com o que **só o aparelho sabe**: quais domingos já têm
+ * culto preparado aqui, e se o próximo já está pronto.
+ *
+ * O servidor não pode responder isso — ele não guarda culto (`docs/site.md`).
+ * A grade e o cartão do próximo já saem corretos sem JavaScript; este script
+ * só acrescenta o que o `localStorage` conhece.
+ */
+const SCRIPT_HOME = `<script>
+(function(){
+  var IDX=${JSON.stringify(INDICE_NOVOS)};
+  var DIAS=${JSON.stringify(DIAS_SEMANA)};
+  var MESES=${JSON.stringify(NOME_MES)};
+  var grade=document.getElementById('mes-domingos');
+  var prox=document.getElementById('proximo');
+  if(!grade&&!prox)return;
+
+  function ler(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function idx(){
+    try{var v=JSON.parse(ler(IDX)||'[]');return v instanceof Array?v:[]}catch(e){return []}
+  }
+  function hojeISO(){
+    var d=new Date(),p=function(n){return (n<10?'0':'')+n};
+    return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+  }
+  function extenso(s){
+    var p=s.split('-'),d=new Date(+p[0],+p[1]-1,+p[2]);
+    return DIAS[d.getDay()]+', '+d.getDate()+' de '+MESES[d.getMonth()];
+  }
+
+  // Um culto do aparelho, resolvido: quantas músicas tem e para onde vai o
+  // link — a setlist vive na chave dele, não no índice.
+  function resolver(c){
+    var ordem=ler('cifras:culto:novo/'+c.nome)||'';
+    var n=ordem?ordem.split(',').length:0;
+    var q=(c.id||'')+(ordem?(c.id?'&':'')+'ordem='+encodeURIComponent(ordem):'');
+    return {n:n,href:'/culto/novo/'+encodeURIComponent(c.nome)+(q?'?'+q:''),
+      periodo:c.periodo,titulo:c.titulo,rotulo:c.rotulo};
+  }
+
+  var porData={};
+  idx().forEach(function(c){
+    if(!c||!c.data)return;
+    var r=resolver(c);
+    // Dois cultos no mesmo dia (manhã e noite): o dia conta como preparado
+    // se qualquer um deles tiver setlist.
+    if(!porData[c.data]||r.n>porData[c.data].n)porData[c.data]=r;
+  });
+
+  var HOJE=hojeISO();
+
+  if(grade){
+    var celulas=grade.querySelectorAll('[data-dia]');
+    var prontos=0;
+    Array.prototype.forEach.call(celulas,function(a){
+      var d=a.getAttribute('data-data');
+      var r=porData[d];
+      if(r&&a.getAttribute('data-estado')!=='realizado'){
+        var estado=r.n>0?'preparado':'pendente';
+        a.setAttribute('data-estado',estado);
+        a.href=r.href;
+        a.removeAttribute('data-abrir-culto');
+        var rot=a.querySelector('.rot');
+        if(rot)rot.textContent=r.n>0?'Preparado':'Em preparo';
+        a.setAttribute('aria-label',a.querySelector('b').textContent+' — '+
+          (r.n>0?'Preparado, '+r.n+(r.n===1?' música':' músicas'):'Em preparo'));
+      }
+      var e=a.getAttribute('data-estado');
+      if(e==='preparado'||e==='realizado')prontos++;
+    });
+    var conta=document.getElementById('mes-conta');
+    var barra=document.getElementById('mes-barra');
+    if(conta)conta.textContent=prontos+' de '+celulas.length+' preparados';
+    if(barra)barra.style.width=(celulas.length?Math.round(prontos*100/celulas.length):0)+'%';
+  }
+
+  if(prox){
+    // O próximo culto é o mais próximo entre o próximo domingo e o que já foi
+    // marcado neste aparelho — culto de sexta é culto, e não pode ficar atrás
+    // de um domingo que ainda nem existe.
+    var alvo=prox.getAttribute('data-iso');
+    var doServidor=prox.getAttribute('data-servidor');
+    var trocou=false;
+    Object.keys(porData).forEach(function(d){
+      if(d>=HOJE&&d<alvo){alvo=d;trocou=true}
+    });
+    // O servidor já resolveu este dia pelo repertório: só se mexe se um culto
+    // do aparelho for ANTES dele.
+    if(doServidor&&!trocou)return;
+    var r=porData[alvo];
+    var quando=document.getElementById('prox-quando');
+    if(quando)quando.textContent=(r&&r.titulo)?r.titulo:extenso(alvo);
+    var fatos=document.getElementById('prox-fatos');
+    var partes=[];
+    if(r&&r.titulo)partes.push(extenso(alvo));
+    if(r&&r.periodo)partes.push(r.periodo);
+    if(r&&r.n)partes.push(r.n+(r.n===1?' música':' músicas'));
+    if(fatos){
+      fatos.hidden=partes.length===0;
+      fatos.innerHTML='';
+      partes.forEach(function(t){
+        var s=document.createElement('span');s.textContent=t;fatos.appendChild(s);
+      });
+    }
+    var selo=document.getElementById('prox-selo');
+    var tit=document.getElementById('prox-selo-tit');
+    var sub=document.getElementById('prox-selo-sub');
+    var acao=document.getElementById('prox-acao');
+    if(r&&r.n>0){
+      if(selo)selo.setAttribute('data-estado','pronto');
+      if(tit)tit.textContent='Culto preparado';
+      if(sub)sub.textContent='Confira a ordem ou abra no celular para tocar.';
+      if(acao){
+        acao.href=r.href;
+        acao.removeAttribute('data-abrir-culto');
+        acao.innerHTML='Abrir culto <span aria-hidden="true">\\u2192</span>';
+      }
+    }else if(r){
+      if(sub)sub.textContent='O culto existe neste aparelho, mas a setlist está vazia.';
+      if(acao){
+        acao.href=r.href;
+        acao.removeAttribute('data-abrir-culto');
+        acao.innerHTML='Montar setlist <span aria-hidden="true">\\u2192</span>';
+      }
+    }else if(acao){
+      acao.href='/culto/novo?data='+alvo;
+      acao.setAttribute('data-data',alvo);
+    }
+  }
+})();
+</script>`;
+
+/**
+ * A tela inicial: o painel de preparação do culto.
+ *
+ * Responde quatro perguntas, nesta ordem — qual é o próximo culto, se ele já
+ * está preparado, o que do mês já foi preparado, e o que fazer agora. Como
+ * culto de domingo é a regra da casa, a grade do mês é derivada do calendário
+ * e não de cadastro nenhum; o estado de cada domingo vem do repertório (o que
+ * já foi tocado) e do aparelho (o que foi preparado aqui).
+ *
+ * `agora` entra por parâmetro para o teste poder fixar o mês. Em produção é o
+ * relógio do servidor, e o `SCRIPT_HOME` corrige pelo do aparelho.
  */
 export function paginaAgenda(
   rep: Repertorio,
-  opcoes: { erros?: readonly string[]; rascunho?: RascunhoCulto } = {},
+  opcoes: { erros?: readonly string[]; rascunho?: RascunhoCulto; agora?: Date } = {},
 ): string {
-  const ultimo = rep.cultos[0];
+  const agora = opcoes.agora ?? new Date();
 
-  const blocoUltimo = ultimo
-    ? '<section class="cartao ultimo-culto">' +
-      '<div class=cartao-topo><div class=quem><span class=rot>Último culto tocado</span>' +
-      `<h2>${esc(ultimo.rotulo)}</h2>` +
-      `<p class=sub>${esc([ultimo.periodo, `${ultimo.entradas.length} músicas`].filter(Boolean).join(' · '))}</p>` +
-      '</div>' +
-      `<a class="btn btn-forte" href="/culto/${segmentoCulto(ultimo)}">Abrir</a>` +
-      '<a class=btn href="/cultos">Ver anteriores</a>' +
-      '</div></section>'
-    : '<p class=aviso>Nenhum culto no repertório ainda. Os tocados vêm de ' +
-      '<code>gerador/repertorio/__init__.py</code> por <code>dados/repertorio.json</code>.</p>';
+  const cabecalho =
+    '<header class=home-topo><div class=quem>' +
+    '<h1>Preparado para o próximo culto?</h1>' +
+    '<p class=sub>Organize as músicas, alinhe a equipe e conduza o culto com ' +
+    'mais simplicidade.</p></div>' +
+    '<div class=controles>' +
+    // No computador não há barra de topo: sem isto, trocar o tema exigiria ir
+    // a Configurações e voltar.
+    botaoTema() +
+    `<a class=icone-btn href="/configuracoes" aria-label="Configurações">${icone('config')}</a>` +
+    `<a class=icone-btn href="/perfil" aria-label="Perfil">${icone('perfil')}</a>` +
+    '</div></header>';
 
   return paginaPainel({
-    titulo: 'Culto',
+    titulo: 'Início',
     ativo: '/',
     css: CSS_PAINEL,
+    largo: true,
+    classeCorpo: 'home',
     miolo:
-      '<header class=culto-topo><div class=quem><h1>Culto</h1>' +
-      '<p class=sub>Os cultos marcados neste aparelho. Abrir um culto monta o ' +
-      'link — o servidor não guarda nada.</p></div>' +
-      '<div class=acoes>' +
-      '<button class="btn btn-forte btn-grande" id=abrir-culto type=button hidden>+ Novo culto</button>' +
-      '</div></header>' +
-      blocoModalCulto(opcoes.erros ?? [], opcoes.rascunho ?? {}) +
-      blocoListaLocal(
-        'futuros',
-        'Próximos cultos',
-        'Nenhum culto marcado de hoje em diante. Abra um culto para começar.',
-      ) +
-      blocoUltimo,
-    scripts: SCRIPT_MODAL_CULTO + SCRIPT_CULTOS_LOCAIS,
+      cabecalho +
+      `<div class=home-grade>${cartaoMes(rep, agora)}${cartaoProximo(rep, agora)}</div>` +
+      blocoListaLocal('futuros', 'Próximos cultos marcados', '') +
+      acoesRapidas() +
+      tabelaUltimos(rep) +
+      blocoModalCulto(opcoes.erros ?? [], opcoes.rascunho ?? {}),
+    scripts: SCRIPT_MODAL_CULTO + SCRIPT_CULTOS_LOCAIS + SCRIPT_HOME,
   });
 }
 
@@ -1372,6 +2281,19 @@ export function paginaConfiguracoes(): string {
     '<span>As alterações de setlist ficam neste aparelho. Apagar volta todos os cultos à ordem tocada.</span></span>' +
     '<span class=grupo><button class="btn" type=button id=limpar-rascunhos>Apagar rascunhos</button></span></div>' +
     '</div>' +
+    // Atalho que ninguém conhece não existe. A tela do culto não carrega a
+    // legenda — seria cromo permanente numa tela que se orgulha de ser vazia —
+    // então ela mora aqui, junto do resto do "como isto funciona", e nos
+    // `title` dos próprios botões.
+    '<h2 class=secao-tit>Atalhos de teclado <em>no painel do culto</em></h2>' +
+    '<ul class=atalhos>' +
+    '<li><kbd>j</kbd><kbd>k</kbd><span>Próxima e anterior música da setlist</span></li>' +
+    '<li><kbd>[</kbd><kbd>]</kbd><span>Descer e subir meio tom na música atual</span></li>' +
+    '<li><kbd>/</kbd><span>Abrir e focar o filtro de adicionar música</span></li>' +
+    '<li><kbd>Esc</kbd><span>Fechar o menu de tom aberto</span></li>' +
+    '</ul>' +
+    '<p class=aviso>Cada atalho aciona um link que já existe na tela — os mesmos ' +
+    'que o mouse usa. Nada aqui é a única forma de fazer a coisa.</p>' +
     '<h2 class=secao-tit>Acesso</h2>' +
     '<p class=aviso>O acervo tem letra de música protegida e este site é ferramenta interna da banda: ' +
     'não há login no aplicativo — o gate é HTTP basic auth no nginx, e o processo escuta em ' +

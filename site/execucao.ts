@@ -117,10 +117,10 @@ const CSS_EXEC = `
       justify-content:center;gap:1px;min-height:52px;border-radius:var(--raio);
       background:var(--raised);color:var(--ink);text-decoration:none;
       font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:16px}
-  .grade-tons a .enar{font-family:var(--sans);font-weight:500;font-size:10px;
+  .grade-tons a .enar{font-family:var(--sans);font-weight:500;font-size:11px;
       color:var(--muted)}
-  .grade-tons a[aria-current=true]{background:var(--cifra);color:#fff}
-  .grade-tons a[aria-current=true] .enar{color:#ffe6d5}
+  .grade-tons a[aria-current=true]{background:var(--cifra);color:#0b1220}
+  .grade-tons a[aria-current=true] .enar{color:inherit;opacity:.8}
   .grade-tons .origem{box-shadow:inset 0 -3px 0 var(--cifra)}
   .linha-menu{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
   .linha-menu .btn{min-height:46px}

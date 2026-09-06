@@ -17,13 +17,26 @@ import { join } from 'node:path';
 import type { MusicaDados } from '../gerador-ts/dados-repertorio.ts';
 import { montarCultos, type Culto } from './cultos.ts';
 import { parseMusica } from '../src/index.ts';
+import { obterCampo } from '../src/cabecalho.ts';
 import { cifraParaDados } from './cifraParaDados.ts';
 
 export type { Culto, EntradaCulto } from './cultos.ts';
 
 export interface MusicaIndexada extends MusicaDados {
   slug: string;
+  /**
+   * Hinário de origem (`HCC`) e o número do hino nele. Vivem aqui, e não em
+   * `MusicaDados`, por dois motivos: `gerador-ts/dados-repertorio.ts` é
+   * GERADO pelo Python e não se edita à mão, e o número não é dado que o
+   * emissor precise — é identidade de biblioteca. Num hinário o número é
+   * como o hino é chamado ("hino 25"), então a busca tem que achá-lo por ele.
+   */
+  numero?: string;
+  fonte?: string;
 }
+
+/** Os campos de hinário que `MusicaDados` não carrega. Ver `MusicaIndexada`. */
+type DadosComFonte = MusicaDados & { numero?: string; fonte?: string };
 
 interface ArquivoRepertorio {
   meta: { musicas: number; cultos?: number };
@@ -37,9 +50,28 @@ function porTitulo(a: MusicaIndexada, b: MusicaIndexada): number {
   return a.titulo.localeCompare(b.titulo, 'pt-BR');
 }
 
+/**
+ * Ordena hino por NÚMERO, não por título — é a ordem do livro, e é a única
+ * coisa que a tela do hinário faz que a biblioteca não faz. Numérico, não
+ * textual: em ordem de texto o 422 vem antes do 52.
+ *
+ * Empate acontece de verdade: o acervo tem duas transcrições do hino 25, em
+ * tons diferentes. Desempata por título, para a ordem ser estável.
+ */
+function porNumero(a: MusicaIndexada, b: MusicaIndexada): number {
+  const d = Number(a.numero) - Number(b.numero);
+  return d !== 0 ? d : porTitulo(a, b);
+}
+
 export interface Repertorio {
   /** Todas as músicas, em ordem de título. */
   todas: MusicaIndexada[];
+  /**
+   * Só as que vêm de hinário (`fonte`), na ordem do livro. Subconjunto de
+   * `todas`, não um acervo à parte: hino é música, e continua aparecendo na
+   * biblioteca e entrando no culto pelo mesmo caminho de sempre.
+   */
+  hinos: MusicaIndexada[];
   /** Uma música pelo slug, ou `undefined`. */
   porSlug(slug: string): MusicaIndexada | undefined;
   /** Os cultos já tocados, do mais recente para o mais antigo. */
@@ -53,7 +85,7 @@ export interface Repertorio {
  * log: 340 músicas na tela valem mais que um servidor que não sobe por
  * causa de uma. O que não pode acontecer é o arquivo sumir em silêncio.
  */
-function carregarAcervo(diretorio: string): Record<string, MusicaDados> {
+function carregarAcervo(diretorio: string): Record<string, DadosComFonte> {
   let nomes: string[];
   try {
     nomes = readdirSync(diretorio).filter((n) => n.endsWith('.cifra'));
@@ -63,11 +95,18 @@ function carregarAcervo(diretorio: string): Record<string, MusicaDados> {
     return {};
   }
 
-  const acervo: Record<string, MusicaDados> = {};
+  const acervo: Record<string, DadosComFonte> = {};
   for (const nome of nomes.sort()) {
     const slug = nome.replace(/\.cifra$/, '');
     try {
-      acervo[slug] = cifraParaDados(parseMusica(readFileSync(join(diretorio, nome), 'utf8'), nome)) as MusicaDados;
+      const musica = parseMusica(readFileSync(join(diretorio, nome), 'utf8'), nome);
+      const numero = obterCampo(musica.cabecalho, 'numero');
+      const fonte = obterCampo(musica.cabecalho, 'fonte');
+      acervo[slug] = {
+        ...(cifraParaDados(musica) as MusicaDados),
+        ...(numero ? { numero } : {}),
+        ...(fonte ? { fonte } : {}),
+      };
     } catch (erro) {
       console.warn(`[repertorio] ${nome} não entrou: ${(erro as Error).message}`);
     }
@@ -90,7 +129,7 @@ export function carregarRepertorio(caminho: string, diretorioAcervo?: string): R
 
   // O acervo entra primeiro e o JSON escreve por cima: na colisão de slug,
   // quem vale é o modelo curado à mão que as fixtures reproduzem.
-  const juntas: Record<string, MusicaDados> = {
+  const juntas: Record<string, DadosComFonte> = {
     ...(diretorioAcervo ? carregarAcervo(diretorioAcervo) : {}),
     ...bruto.musicas,
   };
@@ -105,6 +144,7 @@ export function carregarRepertorio(caminho: string, diretorioAcervo?: string): R
 
   const indice = new Map(todas.map((m) => [m.slug, m]));
   const porSlug = (slug: string) => indice.get(slug);
+  const hinos = todas.filter((m) => m.fonte && m.numero).sort(porNumero);
 
   // `cultos` é opcional no arquivo: repertório gerado por uma versão anterior
   // do exportador não tem a chave, e o painel tem que abrir mesmo assim (vazio
@@ -112,5 +152,5 @@ export function carregarRepertorio(caminho: string, diretorioAcervo?: string): R
   const cultos = montarCultos(bruto.cultos ?? {}, porSlug);
 
   const porNome = new Map(cultos.map((c) => [c.nome, c]));
-  return { todas, porSlug, cultos, cultoPorNome: (nome) => porNome.get(nome) };
+  return { todas, hinos, porSlug, cultos, cultoPorNome: (nome) => porNome.get(nome) };
 }

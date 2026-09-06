@@ -3,7 +3,7 @@
  * sem SPA e **sem estado**.
  *
  * Rotas:
- *   GET /                     a agenda: próximos cultos e o botão de abrir
+ *   GET /                     a home: domingos do mês, próximo culto, ações
  *   GET /culto/:nome          painel do culto: setlist, tons, música atual
  *   GET /culto/novo           abre um culto: monta nome e setlist, redireciona
  *   GET /culto/novo/:nome     painel de um culto criado na tela
@@ -37,6 +37,7 @@ import { dirname, join } from 'node:path';
 import { carregarRepertorio } from './repertorio.ts';
 import {
   paginaBiblioteca,
+  paginaHinario,
   paginaConfiguracoes,
   paginaCulto,
   paginaHistorico,
@@ -269,6 +270,11 @@ export function criarServidor(config: Config) {
   app.get('/musicas', async (_req, resposta) => {
     resposta.type('text/html; charset=utf-8');
     return paginaBiblioteca(rep);
+  });
+
+  app.get('/hinario', async (_req, resposta) => {
+    resposta.type('text/html; charset=utf-8');
+    return paginaHinario(rep);
   });
 
   app.get('/cultos', async (_req, resposta) => {

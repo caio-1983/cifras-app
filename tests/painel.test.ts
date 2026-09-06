@@ -22,6 +22,7 @@ import { cultoNovo, lerNomeDeCulto, montarCultos, nomeDeCultoNovo } from '../sit
 import { codificarOrdem, decodificarOrdem, indiceValido } from '../site/setlist.ts';
 import { TONS, CICLO, CLASSE_DE_ALTURA, passoDeTom } from '../site/tons.ts';
 import { esc, escrever } from '../gerador-ts/html.ts';
+import { paginaAgenda } from '../site/paginas.ts';
 
 process.env.CIFRAS_LOG = 'silent';
 
@@ -495,7 +496,10 @@ test('a agenda traz o modal de novo culto, com nome, data, período, tema e setl
     assert.ok(r.body.includes('<dialog class=modal id=dlg-culto'), 'faltou o modal');
     assert.ok(r.body.includes('action="/culto/novo"'), 'faltou o formulário');
     assert.ok(r.body.includes('method=get'), 'o formulário tem que ser navegação, não fetch');
-    assert.ok(r.body.includes('>+ Novo culto</button>'), 'o botão é "Novo culto"');
+    assert.ok(r.body.includes('<b>Novo culto</b>'), 'o botão é "Novo culto"');
+    // Ação secundária: o caminho normal é clicar no domingo da grade, e por
+    // isso "Novo culto" é um card de ação rápida, não o CTA da página.
+    assert.ok(r.body.includes('class=acoes-rapidas'), 'faltou a faixa de ações rápidas');
     for (const campo of ['name=nome', 'type=date name=data', 'name=periodo', 'name=tema', 'name=musicas']) {
       assert.ok(r.body.includes(campo), `faltou ${campo}`);
     }
@@ -726,13 +730,155 @@ test('a agenda lista o que vem aí a partir do aparelho — o servidor não sabe
     const r = await app.inject({ method: 'GET', url: '/' });
     // Sai vazia do servidor: quem preenche é o script, com o índice local.
     assert.ok(r.body.includes('id=futuros-lista'), 'faltou a lista de próximos');
-    assert.ok(r.body.includes('Nenhum culto marcado de hoje em diante'));
+    // Seção vazia nasce escondida: a home não mostra caixa vazia explicando
+    // que está vazia — quem não marcou nada tem a grade do mês.
+    assert.ok(r.body.includes('<section class=lista-cultos id=futuros hidden>'));
     assert.ok(r.body.includes('cifras:cultos-novos'), 'faltou o script que lê o índice');
     // E o painel do culto novo é quem escreve nesse índice, com a data
     // completa — sem ano não dá para dizer o que é futuro.
     const painel = await app.inject({ method: 'GET', url: '/culto/novo/14SET_Noite?d=2026-09-14' });
     assert.ok(painel.body.includes('cifras:cultos-novos'));
     assert.ok(painel.body.includes('data:"2026-09-14"'));
+  });
+});
+
+// ------------------------------------------------------------ home
+test('a home deriva os domingos do mês do calendário, não de cadastro', () => {
+  // Setembro de 2026 tem quatro domingos (06, 13, 20, 27); março tem cinco
+  // (01, 08, 15, 22, 29). Nada de mês fixo no código: muda o relógio, muda a
+  // grade — inclusive a quantidade de células.
+  const set = paginaAgenda(rep, { agora: new Date(2026, 8, 5) });
+  const dias = (html: string) => [...html.matchAll(/<b>(\d\d\/\d\d)<\/b>/g)].map((m) => m[1]);
+  assert.deepEqual(dias(set), ['06/09', '13/09', '20/09', '27/09']);
+  assert.ok(set.includes('>setembro de 2026<'), 'faltou o mês por extenso');
+
+  const mar = paginaAgenda(rep, { agora: new Date(2026, 2, 3) });
+  assert.deepEqual(dias(mar), ['01/03', '08/03', '15/03', '22/03', '29/03']);
+  assert.ok(mar.includes('>março de 2026<'));
+});
+
+test('o domingo já tocado sai como realizado; o pendente abre o culto com a data pronta', () => {
+  const html = paginaAgenda(rep, { agora: new Date(2026, 8, 5) });
+  // 06SET está no repertório — foi tocado. O casamento é por dia e mês, que é
+  // tudo o que o nome do culto carrega (ver site/cultos.ts).
+  assert.ok(
+    html.includes('href="/culto/06SET" data-dia data-data="2026-09-06" data-estado=realizado'),
+    'o domingo tocado tem que levar ao culto tocado',
+  );
+  // Pendente é link de verdade (funciona sem JS) e já leva a data: clicar em
+  // 20/09 e ter que digitar 20/09 seria trabalho inventado.
+  assert.ok(html.includes('href="/culto/novo?data=2026-09-20" data-dia'));
+  assert.ok(html.includes('data-abrir-culto data-data="2026-09-20"'));
+  // Um de quatro, e a barra acompanha.
+  assert.ok(html.includes('>1 de 4 preparados<'), 'faltou a contagem do mês');
+  assert.ok(html.includes('id=mes-barra style="width:25%"'));
+});
+
+test('o próximo culto é o CTA da home, e não inventa horário nem músicos', () => {
+  // 14/09/2026 é segunda: o próximo domingo é 20/09, que ninguém preparou.
+  const html = paginaAgenda(rep, { agora: new Date(2026, 8, 14) });
+  assert.ok(html.includes('>Domingo, 20 de setembro<'), 'faltou o próximo culto');
+  assert.ok(html.includes('id=prox-acao'), 'faltou o CTA');
+  assert.ok(html.includes('>Preparar culto '), 'o CTA principal é preparar');
+  assert.ok(html.includes('>Ainda não preparado<'));
+
+  // Domingo continua sendo o próximo domingo quando hoje é domingo — e 06SET
+  // está no repertório, então o cartão diz que está pronto e leva ao culto.
+  // Dizer "ainda não preparado" ao lado da grade que o mostra realizado seria
+  // a home se contradizendo em dois cartões vizinhos.
+  const noDomingo = paginaAgenda(rep, { agora: new Date(2026, 8, 6) });
+  assert.ok(noDomingo.includes('data-iso="2026-09-06"'));
+  assert.ok(noDomingo.includes('>Culto preparado<'));
+  assert.ok(noDomingo.includes('id=prox-acao href="/culto/06SET"'), 'o CTA abre o culto');
+
+  // Horário e número de músicos NÃO existem no modelo. O cartão não os mostra
+  // — encher cartão com dado inventado é o erro que este teste tranca.
+  const cartao = html.slice(html.indexOf('<section class="cartao proximo"'), html.indexOf('</section>', html.indexOf('id=proximo')));
+  const texto = cartao.replace(/<[^>]*>/g, ' ');
+  assert.ok(!/\d\dh\b|\d\d:\d\d/.test(texto), 'a home não tem horário: o dado não existe');
+  assert.ok(!texto.includes('músicos'), 'a home não tem contagem de músicos');
+});
+
+test('a home mostra os últimos cultos com dado real, e sem ano inventado', () => {
+  const html = paginaAgenda(rep, { agora: new Date(2026, 8, 5) });
+  assert.ok(html.includes('<table class=tabela-cultos'), 'faltou a tabela');
+  assert.ok(html.includes('>Últimos cultos<'));
+  assert.ok(html.includes('href="/cultos">Ver todos'), 'faltou o "Ver todos"');
+  const linhas = [...html.matchAll(/<td class=data>(\d\d\/\d\d)<\/td>/g)].map((m) => m[1]);
+  assert.deepEqual(linhas, rep.cultos.slice(0, 5).map((c) => {
+    const dia = c.ordinal % 100;
+    return `${String(dia).padStart(2, '0')}/${String((c.ordinal - dia) / 100).padStart(2, '0')}`;
+  }));
+  // O nome do culto não tem ano (site/cultos.ts) — a tabela não completa com um.
+  assert.ok(!/\d\d\/\d\d\/\d{4}/.test(html), 'a data não pode ganhar ano que o dado não tem');
+  const musicas = rep.cultos[0]!.entradas.length;
+  assert.ok(html.includes(`<td class=qtd>${musicas} músicas</td>`), 'a contagem vem do repertório');
+});
+
+test('toda tela de preparação tem volta pelo topo — a marca é link para o início', async () => {
+  await comApp(async (app) => {
+    for (const url of ['/configuracoes', '/perfil', '/musicas', '/cultos', '/culto/06SET']) {
+      const r = await app.inject({ method: 'GET', url });
+      // As duas marcas (trilho do computador e barra do celular) levam ao
+      // início. Configurações não tem aba própria: quem entrou por ela
+      // procurava a saída no topo, onde só havia a engrenagem que o trouxe.
+      assert.equal(
+        r.body.match(/class=marca href="\/"/g)?.length,
+        2,
+        `${url}: as duas marcas têm que levar ao início`,
+      );
+    }
+  });
+});
+
+test('o tema se troca da tela principal, sem passar por Configurações', async () => {
+  await comApp(async (app) => {
+    const home = (await app.inject({ method: 'GET', url: '/' })).body;
+    // Dois botões: o do cabeçalho (computador) e o da barra de topo (celular).
+    // Um está sempre escondido por CSS, e o script liga os dois.
+    assert.equal(home.match(/data-trocar-tema type=button/g)?.length, 2);
+    assert.ok(home.includes('cifras:tema'), 'a escolha tem que ser guardada no aparelho');
+    // O ícone mostra a ação e troca por CSS — sem script, sem piscar.
+    assert.ok(home.includes(':root[data-theme=dark] .tema-btn .ico-sol{display:block}'));
+    // Sem JavaScript ele não faria nada: nasce escondido, como o de novo culto.
+    assert.ok(home.includes('data-trocar-tema type=button hidden'));
+
+    // O botão acompanha todas as telas de preparação pela barra de topo.
+    for (const url of ['/musicas', '/cultos', '/configuracoes']) {
+      const r = await app.inject({ method: 'GET', url });
+      assert.ok(r.body.includes('data-trocar-tema'), `${url} ficou sem troca de tema`);
+    }
+    // Automático continua sendo escolha de Configurações, e só dela.
+    const cfg = (await app.inject({ method: 'GET', url: '/configuracoes' })).body;
+    assert.ok(cfg.includes('data-tema=auto'), 'o terceiro estado mora em Configurações');
+    assert.ok(!home.includes('data-tema=auto'), 'a home não passeia por três estados');
+  });
+});
+
+test('o chão iluminado é da home, e não vai para o papel', async () => {
+  await comApp(async (app) => {
+    const home = await app.inject({ method: 'GET', url: '/' });
+    assert.ok(home.body.includes('<body class="home">'), 'a home carrega o próprio chão');
+    // Sem cor nova e sem o acento: o DESIGN.md reserva o acento para ação,
+    // seleção e estado — "nunca em decoração". O chão é só o neutro com luz.
+    const receita = home.body.slice(home.body.indexOf('body.home{--chao-luz'), home.body.indexOf('.home-topo{'));
+    assert.ok(!receita.includes('var(--acento'), 'o acento não decora o fundo');
+    assert.ok(home.body.includes('body.home{background:none!important}'), 'no papel o chão sai');
+
+    // As telas densas continuam no chão chapado: luz é da tela que tem hero.
+    for (const url of ['/musicas', '/cultos', '/culto/06SET']) {
+      const r = await app.inject({ method: 'GET', url });
+      assert.ok(!r.body.includes('<body class="home">'), `${url} não devia ter o chão da home`);
+    }
+  });
+});
+
+test('a home não explica mais como o servidor guarda — isso é assunto de Configurações', async () => {
+  await comApp(async (app) => {
+    const r = await app.inject({ method: 'GET', url: '/' });
+    const miolo = r.body.slice(r.body.indexOf('<main'), r.body.indexOf('</main>'));
+    assert.ok(!miolo.includes('o servidor não guarda nada'), 'texto técnico fora da home');
+    assert.ok(miolo.includes('Preparado para o próximo culto?'));
   });
 });
 

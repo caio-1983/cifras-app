@@ -11,6 +11,17 @@ __pycache__/
 .claude/settings.local.json
 .claude/*.local.json
 
+# rascunho de ferramenta de crítica de interface: artefato de sessão, não projeto
+.impeccable/
+
 # .txt crus exportados do Drive: insumo reproduzível pelo Apps Script
 # (docs/scripts/exportar-txt-cru.gs.js). O que se versiona é o .cifra curado.
 bruto/txt/
+
+# Partituras do HCC em PDF (87 MB). Nunca entram no repositório: são obra
+# publicada da JUERP, e o próprio arquivo carrega o carimbo "comercialização
+# não autorizada, uso permitido para uma licença" — enquanto o produto for
+# comercializado, versionar isso é o cenário que `docs/rumo.md` proíbe.
+# Tecnicamente também não servem: são imagem escaneada, sem um acorde
+# extraível. O que entra no acervo é cifra transcrita à mão.
+HCC/

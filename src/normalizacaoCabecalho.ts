@@ -22,7 +22,7 @@ const RE_TITULO_ARTISTA = /^(.+?)\s+[–-]\s+(.+)$/;
 // Campos do formato (`formato-cifra.md`). Usados só para decidir se uma linha
 // em branco no meio do cabeçalho pode ser atravessada — antes da primeira
 // branca, campo desconhecido continua aceito como sempre foi.
-const CAMPOS_CONHECIDOS = new Set(['titulo', 'artista', 'tom', 'momento', 'tessitura']);
+const CAMPOS_CONHECIDOS = new Set(['titulo', 'artista', 'tom', 'momento', 'tessitura', 'temas', 'numero', 'fonte']);
 
 export interface CabecalhoBrutoNormalizado {
   /** Linhas já em "chave: valor", sem título envolvido em nada — prontas para receber o "---" na frente do corpo. */

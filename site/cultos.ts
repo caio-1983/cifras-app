@@ -61,7 +61,8 @@ export interface Culto {
 }
 
 const MESES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
-const NOME_MES = [
+/** O mês por extenso, minúsculo — como o rótulo do culto o escreve. */
+export const NOME_MES = [
   'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
   'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
 ];
