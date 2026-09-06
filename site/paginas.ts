@@ -1381,8 +1381,13 @@ export function paginaBiblioteca(rep: Repertorio): string {
         `data-tema="${esc(m.temas?.length ? `|${m.temas.join('|')}|` : '')}" ` +
         `data-busca="${esc(`${m.titulo} ${m.artista} ${referencia}`.trim())}" data-tom-origem="${esc(m.tom)}">` +
         `<a href="/musica/${esc(m.slug)}">` +
+        // Os temas NÃO entram na linha do cartão. Quando eram o `momento`, só 4
+        // músicas os tinham e a linha quase nunca crescia; agora as 341 têm
+        // três cada, e "HCC 52 · Glória de Deus, Adoração, Gratidão" empurra
+        // para fora o que se procura numa lista — o nome e o artista. Quem
+        // filtra por tema já sabe qual tema pediu; o dado vive no `data-tema`.
         `<span class=nome><b>${esc(m.titulo)}</b>` +
-        `<span>${esc(legenda)}${m.temas?.length ? ` · ${esc(m.temas.join(', '))}` : ''}</span></span>` +
+        `<span>${esc(legenda)}</span></span>` +
         `<span class=pastilha>${esc(m.tom)}</span></a></li>`
       );
     })

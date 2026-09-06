@@ -31,6 +31,23 @@ function usados(): Map<string, number> {
   return conta;
 }
 
+test('a colisão de slug não apaga o tema: o JSON manda na música, não na biblioteca', () => {
+  // As 13 modeladas à mão vivem no JSON e ganham do acervo na colisão — o
+  // modelo curado é o que as 139 fixtures reproduzem byte a byte. Mas `temas`
+  // não existe no JSON, e um spread ingênuo levaria o campo embora justamente
+  // nas músicas mais tocadas.
+  //
+  // Mutação: troque a fusão por `{...acervo, ...bruto.musicas}` e isto falha.
+  const semTema = rep.todas.filter((m) => !m.temas?.length);
+  assert.deepEqual(
+    semTema.map((m) => m.slug).sort(),
+    // Só as que existem no JSON e NÃO no acervo podem ficar sem tema — não há
+    // arquivo `.cifra` de onde tirá-lo.
+    ['ah-jesus', 'pai-de-multidoes'],
+    `ficaram sem tema: ${semTema.map((m) => m.slug).join(', ')}`,
+  );
+});
+
 test('o acervo chega ao site com os temas já canônicos', () => {
   const comTema = rep.todas.filter((m) => m.temas?.length);
   assert.ok(comTema.length > 0, 'nenhuma música do acervo trouxe tema');

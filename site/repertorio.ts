@@ -143,10 +143,23 @@ export function carregarRepertorio(caminho: string, diretorioAcervo?: string): R
 
   // O acervo entra primeiro e o JSON escreve por cima: na colisão de slug,
   // quem vale é o modelo curado à mão que as fixtures reproduzem.
-  const juntas: Record<string, DadosComFonte> = {
-    ...(diretorioAcervo ? carregarAcervo(diretorioAcervo) : {}),
-    ...bruto.musicas,
-  };
+  //
+  // Mas só a MÚSICA. Os campos de biblioteca — `temas`, `numero`, `fonte` — não
+  // existem no JSON (que é gerado do Python, e o emissor não precisa deles) e
+  // sobrevivem do lado do acervo. Sem isto, as 13 modeladas à mão sairiam da
+  // busca por tema, e elas são exatamente as mais tocadas: a colisão apagaria o
+  // filtro justo onde ele mais serve.
+  const doAcervo = diretorioAcervo ? carregarAcervo(diretorioAcervo) : {};
+  const juntas: Record<string, DadosComFonte> = { ...doAcervo };
+  for (const [slug, doJson] of Object.entries(bruto.musicas)) {
+    const antes = doAcervo[slug];
+    juntas[slug] = {
+      ...doJson,
+      ...(antes?.temas ? { temas: antes.temas } : {}),
+      ...(antes?.numero ? { numero: antes.numero } : {}),
+      ...(antes?.fonte ? { fonte: antes.fonte } : {}),
+    };
+  }
 
   const todas = Object.entries(juntas)
     .map(([slug, m]) => ({ ...m, slug }))
