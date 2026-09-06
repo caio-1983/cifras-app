@@ -23,6 +23,7 @@ import { codificarOrdem, decodificarOrdem, indiceValido } from '../site/setlist.
 import { TONS, CICLO, CLASSE_DE_ALTURA, passoDeTom } from '../site/tons.ts';
 import { esc, escrever } from '../gerador-ts/html.ts';
 import { paginaAgenda } from '../site/paginas.ts';
+import { TEMAS_CANONICOS } from '../src/temas.ts';
 
 process.env.CIFRAS_LOG = 'silent';
 
@@ -482,9 +483,20 @@ test('a biblioteca busca por nome, tema e cantor, cada um no seu campo', async (
     for (const t of tons) {
       assert.ok(r.body.includes(`data-tom-filtro="${t}"`), `faltou o chip de ${t}`);
     }
-    // O tema sai do `momento`, e a tela diz quantas músicas o têm em vez de
-    // fingir que o filtro cobre o acervo inteiro.
-    assert.ok(r.body.includes('momento'));
+    // O tema é LISTA, não campo de texto: o vocabulário é fechado
+    // (`src/temas.ts`), e digitar só oferece o erro de grafia.
+    assert.match(r.body, /<select class="campo campo-select" data-filtro=lista data-campo="tema"/);
+    assert.ok(!/<input[^>]*data-campo="tema"/.test(r.body), 'o tema ainda é campo de texto');
+
+    assert.ok(r.body.includes('<option value="">Todos os temas</option>'), 'faltou o "todos"');
+
+    // Este repertório é o JSON de 13 músicas, que não tem `temas:`. Então aqui
+    // a exigência é a inversa e vale a pena: nenhuma opção de tema pode
+    // aparecer. A lista se monta do que o acervo tem, não do vocabulário — a
+    // cobertura contra música de verdade está em `tests/temasBiblioteca.test.ts`.
+    for (const t of TEMAS_CANONICOS) {
+      assert.ok(!r.body.includes(`<option value="|${esc(t)}|"`), `${t} virou opção sem música`);
+    }
   });
 });
 

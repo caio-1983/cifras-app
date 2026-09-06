@@ -18,6 +18,7 @@ import type { MusicaDados } from '../gerador-ts/dados-repertorio.ts';
 import { montarCultos, type Culto } from './cultos.ts';
 import { parseMusica } from '../src/index.ts';
 import { obterCampo } from '../src/cabecalho.ts';
+import { lerTemas } from '../src/temas.ts';
 import { cifraParaDados } from './cifraParaDados.ts';
 
 export type { Culto, EntradaCulto } from './cultos.ts';
@@ -33,10 +34,16 @@ export interface MusicaIndexada extends MusicaDados {
    */
   numero?: string;
   fonte?: string;
+  /**
+   * Os temas do cabeçalho `temas:`, já canônicos (`src/temas.ts`). Vivem aqui
+   * pelo mesmo motivo que `numero`: são identidade de biblioteca, não dado que
+   * o emissor precise para desenhar a cifra.
+   */
+  temas?: string[];
 }
 
 /** Os campos de hinário que `MusicaDados` não carrega. Ver `MusicaIndexada`. */
-type DadosComFonte = MusicaDados & { numero?: string; fonte?: string };
+type DadosComFonte = MusicaDados & { numero?: string; fonte?: string; temas?: string[] };
 
 interface ArquivoRepertorio {
   meta: { musicas: number; cultos?: number };
@@ -102,10 +109,17 @@ function carregarAcervo(diretorio: string): Record<string, DadosComFonte> {
       const musica = parseMusica(readFileSync(join(diretorio, nome), 'utf8'), nome);
       const numero = obterCampo(musica.cabecalho, 'numero');
       const fonte = obterCampo(musica.cabecalho, 'fonte');
+      // `lerTemas` devolve o canônico do vocabulário fechado (`src/temas.ts`) e
+      // separa o que não reconhece. Aqui ficam só os conhecidos: é deles que a
+      // biblioteca monta o filtro, e um tema fora do vocabulário viraria opção
+      // que ninguém escolhe. O desconhecido não some — `lerTemas` o devolve, e
+      // quem valida o acervo é que tem de olhar.
+      const { temas } = lerTemas(obterCampo(musica.cabecalho, 'temas') ?? '');
       acervo[slug] = {
         ...(cifraParaDados(musica) as MusicaDados),
         ...(numero ? { numero } : {}),
         ...(fonte ? { fonte } : {}),
+        ...(temas.length ? { temas } : {}),
       };
     } catch (erro) {
       console.warn(`[repertorio] ${nome} não entrou: ${(erro as Error).message}`);

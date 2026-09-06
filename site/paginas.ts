@@ -252,6 +252,16 @@ const CSS_PREPARO = `
       grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
   .campo-busca{display:grid;gap:5px;font-size:12px;font-weight:600;
       color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  /* O seletor de tema herda a classe .campo inteira e acrescenta só a seta:
+     filtrar por tema é irmão de filtrar por nome, e tem que parecer. A seta é
+     desenhada em gradiente para não depender de imagem externa. */
+  .campo-select{appearance:none;-webkit-appearance:none;cursor:pointer;
+      padding-right:36px;
+      background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),
+          linear-gradient(135deg,currentColor 50%,transparent 50%);
+      background-position:calc(100% - 20px) calc(50% + 1px),
+          calc(100% - 15px) calc(50% + 1px);
+      background-size:5px 5px;background-repeat:no-repeat}
   .lista{list-style:none;margin:0;padding:0}
   .lista li{border-bottom:1px solid var(--line)}
   .lista li:last-child{border-bottom:0}
@@ -744,7 +754,9 @@ const SCRIPT_FILTRO = `<script>
   // tem três (nome, tema, cantor) e eles têm que filtrar juntos. Um "aplicar"
   // por campo faria o último a rodar desfazer o que os outros esconderam.
   var porLista={};
-  document.querySelectorAll('input[data-filtro]').forEach(function(campo){
+  // \`select\` entra junto com \`input\`: o filtro de tema é uma lista porque o
+  // vocabulário é fechado, mas filtra pelo mesmo caminho que os de texto.
+  document.querySelectorAll('input[data-filtro],select[data-filtro]').forEach(function(campo){
     (porLista[campo.dataset.filtro]=porLista[campo.dataset.filtro]||[]).push(campo);
   });
   Object.keys(porLista).forEach(function(id){
@@ -771,7 +783,12 @@ const SCRIPT_FILTRO = `<script>
       if(vazio)vazio.hidden=n>0;
       if(conta)conta.textContent=n;
     }
-    campos.forEach(function(c){c.addEventListener('input',aplicar)});
+    // \`change\` além de \`input\` porque nem todo navegador dispara \`input\` ao
+    // escolher no \`select\` — no celular, que é onde isto é usado, menos ainda.
+    campos.forEach(function(c){
+      c.addEventListener('input',aplicar);
+      if(c.tagName==='SELECT')c.addEventListener('change',aplicar);
+    });
     lista.addEventListener('filtrar',aplicar);
     aplicar();
   });
@@ -1319,16 +1336,34 @@ function scriptCulto(culto: Culto, canonica: string): string {
  * `data-` do item, e não um índice único concatenado, senão "Fernandinho" no
  * campo de nome acharia a música pelo artista.
  *
- * "Tema" é o campo `momento` do `.cifra` — o vocabulário que o acervo já tem
- * (adoracao, celebracao). Poucas músicas o trazem hoje, e a tela diz isso em
- * vez de fingir que o filtro cobre as 343.
+ * "Tema" é uma LISTA, não um campo de texto, e isso decorre do dado: o `temas:`
+ * do `.cifra` tem vocabulário fechado (`src/temas.ts`), então digitar só
+ * oferece o erro — "adoraçao", "louvores", "gratidao" — sem oferecer nada que
+ * escolher de uma lista não ofereça. A lista mostra apenas os temas que ALGUMA
+ * música tem, com a contagem: um tema do vocabulário que ninguém usou seria uma
+ * opção que só leva a "nada com esses filtros".
+ *
+ * O casamento é por segmento delimitado (`|Adoração|`) e não por substring:
+ * uma música tem vários temas no mesmo atributo, e substring faria um tema
+ * contido no nome de outro trazer música errada.
  *
  * Hino de hinário entra pelo campo de NOME, pelo número: o acervo tem hinos do
  * HCC, e "hino 25" é como eles são chamados. Ver `fonte`/`numero` em
  * `site/repertorio.ts`.
  */
 export function paginaBiblioteca(rep: Repertorio): string {
-  const comTema = rep.todas.filter((m) => m.momento).length;
+  const comTema = rep.todas.filter((m) => m.temas?.length).length;
+
+  // Quantas músicas por tema, só dos que aparecem. Ordena por frequência e
+  // desempata por nome: o topo da lista é o que mais serve, e a ordem é
+  // estável entre recargas.
+  const contagem = new Map<string, number>();
+  for (const m of rep.todas) {
+    for (const t of m.temas ?? []) contagem.set(t, (contagem.get(t) ?? 0) + 1);
+  }
+  const temasUsados = [...contagem.entries()].sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'),
+  );
 
   const itens = rep.todas
     .map((m) => {
@@ -1342,11 +1377,12 @@ export function paginaBiblioteca(rep: Repertorio): string {
       const legenda = [m.artista, referencia].filter(Boolean).join(' · ');
       return (
         `<li data-titulo="${esc(`${m.titulo} ${referencia}`.trim())}" data-artista="${esc(m.artista)}" ` +
-        `data-tema="${esc(m.momento ?? '')}" ` +
+        // Delimitado nas duas pontas para o filtro casar segmento inteiro.
+        `data-tema="${esc(m.temas?.length ? `|${m.temas.join('|')}|` : '')}" ` +
         `data-busca="${esc(`${m.titulo} ${m.artista} ${referencia}`.trim())}" data-tom-origem="${esc(m.tom)}">` +
         `<a href="/musica/${esc(m.slug)}">` +
         `<span class=nome><b>${esc(m.titulo)}</b>` +
-        `<span>${esc(legenda)}${m.momento ? ` · ${esc(m.momento)}` : ''}</span></span>` +
+        `<span>${esc(legenda)}${m.temas?.length ? ` · ${esc(m.temas.join(', '))}` : ''}</span></span>` +
         `<span class=pastilha>${esc(m.tom)}</span></a></li>`
       );
     })
@@ -1363,12 +1399,23 @@ export function paginaBiblioteca(rep: Repertorio): string {
     `<input class=campo type=search data-filtro=lista data-campo="${esc(chave)}" autocomplete=off ` +
     `placeholder="${esc(dica)}" aria-label="${esc(rotulo)}"></label>`;
 
+  // O valor da opção é o segmento delimitado que o filtro procura no item.
+  const opcoes =
+    `<option value="">Todos os temas</option>` +
+    temasUsados
+      .map(([t, n]) => `<option value="|${esc(t)}|">${esc(t)} (${n})</option>`)
+      .join('');
+  const seletorTema =
+    '<label class=campo-busca>Tema' +
+    '<select class="campo campo-select" data-filtro=lista data-campo="tema" ' +
+    `aria-label="Filtrar por tema">${opcoes}</select></label>`;
+
   const miolo =
     `<h1 class=secao-tit>Músicas<em>${rep.todas.length} no repertório</em></h1>` +
     '<div class=cartao><div class=busca-topo>' +
     '<div class=campos-busca>' +
     campo('titulo', 'Nome da música ou nº do hino', 'Ex.: O Grande Eu Sou, ou 25') +
-    campo('tema', 'Tema', 'Ex.: adoracao') +
+    seletorTema +
     campo('artista', 'Cantor / banda', 'Ex.: Gabriela Rocha') +
     '</div>' +
     `<nav class="fila" data-chips=lista aria-label="Filtrar por tom">${chips}</nav>` +
@@ -1377,8 +1424,9 @@ export function paginaBiblioteca(rep: Repertorio): string {
     '<p class=vazio data-vazio=lista hidden style="padding:28px 16px">Nada com esses filtros.</p>' +
     '</div>' +
     `<p class=contagem><span data-conta=lista>${rep.todas.length}</span> de ${rep.todas.length} músicas. ` +
-    `Os três campos filtram juntos. O tema vem do campo <code>momento</code> do <code>.cifra</code>, ` +
-    `que ${comTema} das ${rep.todas.length} músicas ainda tem preenchido.</p>`;
+    `Os três filtros valem juntos. O tema vem do campo <code>temas</code> do <code>.cifra</code>, ` +
+    `que ${comTema} das ${rep.todas.length} músicas já tem preenchido — as demais não aparecem ` +
+    `com um tema escolhido.</p>`;
 
   return paginaPainel({
     titulo: 'Músicas',
