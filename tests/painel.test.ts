@@ -22,7 +22,7 @@ import { cultoNovo, lerNomeDeCulto, montarCultos, nomeDeCultoNovo } from '../sit
 import { codificarOrdem, decodificarOrdem, indiceValido } from '../site/setlist.ts';
 import { TONS, CICLO, CLASSE_DE_ALTURA, passoDeTom } from '../site/tons.ts';
 import { esc, escrever } from '../gerador-ts/html.ts';
-import { paginaAgenda } from '../site/paginas.ts';
+import { paginaAgenda, paginaCulto } from '../site/paginas.ts';
 import { TEMAS_CANONICOS } from '../src/temas.ts';
 
 process.env.CIFRAS_LOG = 'silent';
@@ -553,10 +553,14 @@ test('a agenda traz o modal de novo culto, com nome, data, período, tema e setl
       assert.ok(r.body.includes(campo), `faltou ${campo}`);
     }
     // Período oferece manhã, tarde e noite, nessa ordem — a ordem do dia — e
-    // é obrigatório: dois cultos no mesmo dia são dois cultos.
-    assert.ok(r.body.includes('name=periodo required'), 'o período tem que ser obrigatório');
-    const opcoes = [...r.body.matchAll(/<option value="\w*"[^>]*>([^<]*)<\/option>/g)].map((m) => m[1]);
-    assert.deepEqual(opcoes.slice(0, 4), ['Escolha o período', 'Manhã', 'Tarde', 'Noite']);
+    // é marcável: dois cultos no mesmo dia continuam sendo dois cultos, mas a
+    // mesma setlist pode servir aos dois, e digitá-la duas vezes é trabalho
+    // que o produto poupa.
+    // Dentro do modal: o formulário sai duas vezes (modal e <noscript>).
+    const modal = r.body.slice(r.body.indexOf('<dialog'), r.body.indexOf('</dialog>'));
+    const opcoes = [...modal.matchAll(/type=checkbox name=periodo value="(\w+)"/g)].map((m) => m[1]);
+    assert.deepEqual(opcoes, ['Manha', 'Tarde', 'Noite']);
+    assert.ok(modal.includes('>Manhã</span>'), 'o rótulo do período sai acentuado');
     // `Sexta` existe no acervo (28AGO_Sexta) e continua sendo lida, mas não é
     // oferecida: o formulário não é o vocabulário de leitura.
     assert.ok(!r.body.includes('>Sexta<'), 'Sexta não deveria estar no formulário');
@@ -615,7 +619,7 @@ test('o período é obrigatório: dois cultos no mesmo dia são dois cultos', as
   await comApp(async (app) => {
     const r = await app.inject({ method: 'GET', url: '/culto/novo?data=2026-09-20' });
     assert.equal(r.statusCode, 400);
-    assert.ok(r.body.includes('Escolha o período do culto.'));
+    assert.ok(r.body.includes('Escolha ao menos um período do culto.'));
     // O que já estava escrito continua na tela — errar o período não pode
     // custar a setlist digitada.
     const comSetlist = await app.inject({
@@ -846,6 +850,71 @@ test('o próximo culto é o CTA da home, e não inventa horário nem músicos', 
   const texto = cartao.replace(/<[^>]*>/g, ' ');
   assert.ok(!/\d\dh\b|\d\d:\d\d/.test(texto), 'a home não tem horário: o dado não existe');
   assert.ok(!texto.includes('músicos'), 'a home não tem contagem de músicos');
+});
+
+test('a home trata o dia com mais de um culto: um dia, vários períodos', () => {
+  // Manhã e noite do mesmo domingo são DOIS cultos. Quem monta a home a partir
+  // do índice do aparelho precisa listá-los, não escolher um — antes o outro
+  // ficava inalcançável pela grade do mês.
+  //
+  // O estado desses cultos mora no `localStorage`, então quem os desenha é o
+  // script da página (progressive enhancement, como o resto da home). Este
+  // teste tranca o contrato do script; o comportamento na tela foi conferido
+  // no navegador.
+  const html = paginaAgenda(rep, { agora: new Date(2026, 8, 5) });
+  const script = html.slice(html.indexOf("var porData={}"));
+
+  // A chave do dia guarda a LISTA — foi trocar isto que consertou o bug.
+  assert.ok(
+    /porData\[c\.data\]=porData\[c\.data\]\|\|\[\]\)\.push/.test(script),
+    'o dia tem que acumular os cultos, não ficar só com um',
+  );
+  // Na ordem do dia, que é como a agenda fala.
+  assert.ok(script.includes("var ORDEM_DIA=['Manhã','Tarde','Noite']"));
+  // O dia só é "preparado" quando todo culto dele tem setlist: com a manhã
+  // pronta e a noite vazia ainda falta trabalho.
+  assert.ok(script.includes('faltando===0'), 'dia com culto vazio não é preparado');
+  // E cada período vira um link de verdade.
+  assert.ok(script.includes("fita.className='periodos-dia'"), 'faltou a fita de períodos');
+  assert.ok(script.includes('p.href=x.href'), 'cada período precisa do link dele');
+
+  // UM cartão: o dia em cima, os períodos embaixo divididos ao meio. A moldura
+  // (estado e anel de hoje) é do cartão, porque a célula de dentro perdeu a
+  // borda — sem isto o domingo de dois cultos não mostraria o estado do dia.
+  assert.ok(script.includes("caixa.setAttribute('data-estado',estado)"),
+    'o cartão tem que carregar o estado do dia');
+  assert.ok(script.includes("caixa.setAttribute('data-hoje-dia','')"),
+    'o anel de hoje tem que passar para o cartão');
+  // O topo diz quantos cultos o dia tem; o "quantos prontos" já está nas
+  // metades (verde/apagado) e repeti-lo seria ruído.
+  assert.ok(script.includes("lista.length+' cultos'"), 'o topo conta os cultos do dia');
+
+  // E o CSS que faz o cartão ser um só, dividido ao meio.
+  assert.ok(html.includes('.dia-varios{'), 'faltou o cartão do dia com vários cultos');
+  // As duas réguas precisam ser linha de verdade, não `border:0` — é o que faz
+  // "um cartão dividido" se ler em vez de um bloco só.
+  assert.ok(/\.periodos-dia\{[^}]*border-top:1px solid/.test(html),
+    'faltou a régua entre o dia e as metades');
+  assert.ok(/\.periodos-dia a\+a\{border-left:1px solid/.test(html),
+    'faltou a divisória entre manhã e noite');
+});
+
+test('o culto irmão nasce com a setlist que foi criada junto', () => {
+  // "Mesma setlist, um por período" é a promessa da criação. Sem gravar a
+  // chave do irmão, o culto da noite nascia vazio no aparelho e a agenda o
+  // mostrava como "setlist vazia" — contradizendo a tela que acabou de criá-lo.
+  const culto = cultoNovo('20SET_Manha', [], { data: '2026-09-20' })!;
+  const irmao = cultoNovo('20SET_Noite', [], { data: '2026-09-20' })!;
+  const html = paginaCulto(rep, culto, [], 0, { irmaos: [irmao] });
+  assert.ok(
+    html.includes("if(ordem)por('cifras:culto:novo/'+ir.nome,ordem)"),
+    'a setlist tem que ser gravada também para o irmão',
+  );
+  // Mas só na criação: irmão que já existia pode ter setlist própria, e
+  // "saíram iguais" não autoriza apagá-la.
+  const bloco = html.slice(html.indexOf('for(var j=IRMAOS.length-1'));
+  assert.ok(bloco.indexOf('if(!tem){') < bloco.indexOf("por('cifras:culto:novo/'"),
+    'a gravação tem que estar dentro do "se ainda não existe"');
 });
 
 test('a home mostra os últimos cultos com dado real, e sem ano inventado', () => {

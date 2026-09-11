@@ -32,12 +32,29 @@ export interface ProblemaSetlist {
   /** A linha como o usuário escreveu — é o que a tela mostra de volta. */
   linha: string;
   motivo: 'nao-encontrada' | 'ambigua' | 'repetida';
+  /**
+   * As músicas que a linha alcança, quando o motivo é `ambigua`. É o que a
+   * tela precisa para **perguntar** em vez de só reclamar.
+   *
+   * O acervo tem 58 títulos que se repetem — "VITORIOSO ÉS" tem seis
+   * transcrições, em tons diferentes. Para esses, "escreva o título inteiro"
+   * é conselho impossível: os títulos são idênticos, e o que separa uma da
+   * outra é o tom e os acordes. Por isso a ambiguidade não é erro de quem
+   * digitou; é uma pergunta que só o acervo pode fazer e só o usuário pode
+   * responder.
+   */
+  candidatas?: MusicaIndexada[];
+  /** O tom escrito na linha, quando havia. Sobrevive à escolha. */
+  tom?: string | null;
 }
 
 export interface SetlistLida {
   entradas: EntradaCulto[];
   problemas: ProblemaSetlist[];
 }
+
+/** Quantas candidatas a tela mostra por linha ambígua. */
+const MAX_CANDIDATAS = 12;
 
 /** Sem acento, sem pontuação, minúscula: "Coração!" e "coracao" se encontram. */
 function normalizar(s: string): string {
@@ -69,16 +86,18 @@ function separarTom(linha: string): { titulo: string; tom: string | null } {
  * prefixo e por trecho — e **prefixo ambíguo não escolhe**: com "EU VOU" para
  * duas músicas, adivinhar seria pior que perguntar.
  */
-function acharMusica(
+export function acharMusica(
   titulo: string,
   rep: Repertorio,
-): { musica?: MusicaIndexada; ambigua?: boolean } {
+): { musica?: MusicaIndexada; candidatas?: MusicaIndexada[] } {
   const alvo = normalizar(titulo);
   if (!alvo) return {};
 
   const exata = rep.todas.filter((m) => normalizar(m.titulo) === alvo || m.slug === titulo.trim());
   if (exata.length === 1) return { musica: exata[0] };
-  if (exata.length > 1) return { ambigua: true };
+  // Empate no título exato é o caso comum do acervo (as seis "VITORIOSO ÉS"),
+  // e é aqui que a escolha tem de ser oferecida: são todas a música pedida.
+  if (exata.length > 1) return { candidatas: exata.slice(0, MAX_CANDIDATAS) };
 
   for (const casa of [
     (m: MusicaIndexada) => normalizar(m.titulo).startsWith(alvo),
@@ -87,7 +106,7 @@ function acharMusica(
   ]) {
     const achadas = rep.todas.filter(casa);
     if (achadas.length === 1) return { musica: achadas[0] };
-    if (achadas.length > 1) return { ambigua: true };
+    if (achadas.length > 1) return { candidatas: achadas.slice(0, MAX_CANDIDATAS) };
   }
   return {};
 }
@@ -96,7 +115,18 @@ function acharMusica(
  * Lê a setlist digitada. Linha vazia é separador, não erro — quem escreve
  * agrupa por bloco de louvor.
  */
-export function lerSetlistTexto(texto: string | undefined, rep: Repertorio): SetlistLida {
+export function lerSetlistTexto(
+  texto: string | undefined,
+  rep: Repertorio,
+  /**
+   * O que o usuário já escolheu para as linhas ambíguas, por texto de linha.
+   *
+   * A chave é a linha, não a posição: quem volta da tela de escolha pode ter
+   * corrigido uma linha vizinha, e uma escolha presa ao índice iria parar na
+   * música errada — que é exatamente o erro que a tela existe para evitar.
+   */
+  escolhas: Readonly<Record<string, string>> = {},
+): SetlistLida {
   const entradas: EntradaCulto[] = [];
   const problemas: ProblemaSetlist[] = [];
   const jaTem = new Set<string>();
@@ -107,9 +137,25 @@ export function lerSetlistTexto(texto: string | undefined, rep: Repertorio): Set
     if (!linha) continue;
 
     const { titulo, tom } = separarTom(linha);
-    const { musica, ambigua } = acharMusica(titulo, rep);
+    let { musica, candidatas } = acharMusica(titulo, rep);
+
+    // A escolha só vale se for uma das candidatas daquela linha: um `escolha=`
+    // editado à mão não pode injetar música que a linha nunca alcançou.
+    if (!musica && candidatas) {
+      const pedida = escolhas[bruta.trim()];
+      const achada = pedida ? candidatas.find((m) => m.slug === pedida) : undefined;
+      if (achada) {
+        musica = achada;
+        candidatas = undefined;
+      }
+    }
+
     if (!musica) {
-      problemas.push({ linha: bruta.trim(), motivo: ambigua ? 'ambigua' : 'nao-encontrada' });
+      problemas.push(
+        candidatas
+          ? { linha: bruta.trim(), motivo: 'ambigua', candidatas, tom }
+          : { linha: bruta.trim(), motivo: 'nao-encontrada' },
+      );
       continue;
     }
     if (jaTem.has(musica.slug)) {
@@ -127,7 +173,7 @@ export function lerSetlistTexto(texto: string | undefined, rep: Repertorio): Set
 export function explicarProblema(p: ProblemaSetlist): string {
   const motivo =
     p.motivo === 'ambigua'
-      ? 'combina com mais de uma música — escreva o título inteiro'
+      ? `tem ${p.candidatas?.length ?? 2} versões no acervo — escolha abaixo`
       : p.motivo === 'repetida'
         ? 'já está nesta setlist'
         : 'não está no repertório';

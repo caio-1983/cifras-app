@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { importarCifraCrua } from '../src/importador.ts';
 import { parseMusica } from '../src/index.ts';
 import { obterCampo } from '../src/cabecalho.ts';
+import { transporMusica } from '../src/transpositor.ts';
+import { serializarMusica } from '../src/serializador.ts';
 
 // Caso real: conteúdo exportado como texto puro de um Google Doc que veio
 // da conversão em massa dos .docx do acervo (docs/scripts/converter-cifras.gs.js).
@@ -352,4 +354,76 @@ test('importar: "Tom:" vazio não vale como tom declarado — o tom do título e
 test('importar: tom ilegível e sem alternativa é ERRO, não arquivo quebrado', () => {
   const cru = ['TU ÉS FIEL', 'Tom:', '', '[Intro] | B | E |'].join('\n');
   assert.throws(() => importarCifraCrua(cru, 'tu-es-fiel.txt'), /tom/i);
+});
+
+// ------------------------------------------------- pendências do sprint 1
+// As três causas mecânicas que travavam a importação em massa do Drive. São
+// mecânicas porque a correção não escolhe nada por ninguém: o dado já está no
+// arquivo, só não na forma que o formato usa. O que exige decisão musical
+// (cifra sem tom, acorde alternativo entre parênteses, seção referenciada que
+// nunca foi definida) continua sendo ERRO de propósito — ver
+// `scripts/triar-pendentes.mjs`.
+
+test('importar: prosa na mesma linha do rótulo de seção vira anotação de execução', () => {
+  // `[Refrão] Cai e vai subindo` — 33 arquivos do Drive escrevem assim. O
+  // rótulo é subtítulo legítimo; o que vem depois é instrução de regência, e
+  // o parser tentava lê-la como cifra ("nota inválida: e").
+  const cru = ['CANÇÃO', 'Tom: B', '', '[Refrão] Cai e vai subindo', '| B | E |', 'a letra'].join('\n');
+  const texto = importarCifraCrua(cru, 'cancao.txt');
+  assert.ok(texto.includes('[Refrão]'), texto);
+  assert.ok(texto.includes('{Cai e vai subindo}'), texto);
+});
+
+test('importar: rótulo sem prosa atrás continua sendo só rótulo', () => {
+  // A regra não pode inventar anotação onde não há: `[Verso 1 e 2]` é rótulo
+  // inteiro e nada vem depois dele.
+  const cru = ['CANÇÃO', 'Tom: B', '', '[Verso 1 e 2]', '| B |', 'a letra'].join('\n');
+  const texto = importarCifraCrua(cru, 'cancao.txt');
+  assert.ok(texto.includes('[Verso 1 e 2]'), texto);
+  assert.ok(!texto.includes('{'), 'não podia virar anotação: ' + texto);
+});
+
+test('importar: acorde solto depois do rótulo continua acorde, não vira anotação', () => {
+  // `[Intro] B` é rótulo mais CIFRA — uma palavra só, que se lê como acorde.
+  // Envolvê-la em chaves apagaria um acorde de verdade: `{B}` não transpõe, e
+  // a intro da música sairia em B em todos os tons. Caso real de
+  // LEVANTO UM ALELUIA.
+  const texto = importarCifraCrua(
+    ['CANÇÃO', 'Tom: B', '', '[Intro] B', 'a letra'].join('\n'), 'cancao.txt');
+  assert.ok(!texto.includes('{B}'), 'o acorde virou anotação: ' + texto);
+  const musica = parseMusica(texto, 'x');
+  const emC = transporMusica(musica, 'C');
+  // Se virasse anotação, o B sobreviveria intacto na transposição para C.
+  assert.ok(!serializarMusica(emC).includes('{B}'), 'a intro não transpôs');
+});
+
+test('importar: baixo invertido partido por espaço volta a ser um acorde só', () => {
+  // `| Cm Bb /D |` — o Docs come o separador. `Bb /D` são duas coisas que só
+  // fazem sentido juntas: sem isto o `/D` vira "nota inválida".
+  const cru = ['CANÇÃO', 'Tom: Bb', '', '| Cm Bb /D | Eb |', 'a letra'].join('\n');
+  const texto = importarCifraCrua(cru, 'cancao.txt');
+  assert.ok(texto.includes('Bb/D'), texto);
+  assert.ok(!/Bb \/D/.test(texto), 'o separador continuou partido: ' + texto);
+});
+
+test('importar: prosa antes da primeira barra de compasso vira anotação', () => {
+  // `teclado | D | % |`, `reintro | Em/D |`, `1ª vez: | E |` — a instrução de
+  // quem entra vem na frente da cifra. Sem isto vira "nota inválida: teclado".
+  for (const [cru, esperado] of [
+    ['teclado         | D | % |', '{teclado}'],
+    ['reintro | Em/D | D G/A |', '{reintro}'],
+    ['1ª vez: | E |', '{1ª vez}'],
+  ] as const) {
+    const texto = importarCifraCrua(['CANÇÃO', 'Tom: D', '', cru, 'a letra'].join('\n'), 'c.txt');
+    assert.ok(texto.includes(esperado), `${cru} -> ${texto}`);
+  }
+});
+
+test('importar: rótulo conhecido antes da cifra continua virando subtítulo, não anotação', () => {
+  // `INTRODUÇÃO | C |` é rótulo de seção, e o vocabulário já o reconhece.
+  // Anotá-lo como `{INTRODUÇÃO}` perderia a estrutura da música.
+  const texto = importarCifraCrua(
+    ['CANÇÃO', 'Tom: C', '', 'INTRODUÇÃO   | C | G |', 'a letra'].join('\n'), 'c.txt');
+  assert.ok(texto.includes('[Intro]'), texto);
+  assert.ok(!texto.includes('{INTRODUÇÃO}'), texto);
 });

@@ -32,6 +32,7 @@ import {
 } from './cultos.ts';
 import { TONS, passoDeTom } from './tons.ts';
 import { codificarOrdem } from './setlist.ts';
+import type { ProblemaSetlist } from './setlistTexto.ts';
 import { CSS_UI, CSS_CIFRA, paginaPainel, envelope, icone, botaoTema } from './ui.ts';
 
 /** CSS das telas de preparação. Só tela — o papel não conhece nada disto. */
@@ -74,6 +75,9 @@ const CSS_PREPARO = `
   .rascunho[data-estado=alterada]{background:var(--acento-fraco);
       border-color:transparent;color:var(--ink)}
   .rascunho[data-estado=alterada] b{color:var(--acento)}
+  /* "Criei manhã e noite" é confirmação, não alerta: fica no tom quieto, e o
+     que ganha ênfase é o botão que leva ao outro culto. */
+  .rascunho[data-estado=irmaos] b{color:var(--acento)}
   .rascunho .btn{min-height:36px;padding:6px 12px;font-size:13px}
 
   /* ------------------------------------------------ setlist */
@@ -372,6 +376,78 @@ const CSS_PREPARO = `
   .campo-alto{min-height:auto;padding:10px 14px;line-height:1.5;resize:vertical;
       font-family:ui-monospace,Menlo,monospace;font-size:14px}
 
+  /* ------------------------------------------------ período (vários)
+     Manhã e noite do mesmo domingo costumam ter a mesma setlist. A caixa
+     marcável diz isso sozinha; o <select> anterior dizia o contrário. */
+  .periodos{grid-column:1/-1;margin:0;padding:0;border:0;min-width:0}
+  .periodos legend{padding:0;margin-bottom:6px;color:var(--muted);
+      font-size:13px;font-weight:600}
+  .periodo-linha{display:flex;gap:8px;flex-wrap:wrap}
+  .periodo-op{display:block;flex:1 1 auto;min-width:96px}
+  .periodo-op input{position:absolute;opacity:0;width:0;height:0}
+  .periodo-op span{display:block;padding:11px 14px;border:1px solid var(--line);
+      border-radius:var(--raio);background:var(--surface);color:var(--ink);
+      font-size:14px;font-weight:600;text-align:center;cursor:pointer;
+      min-height:44px;line-height:22px}
+  .periodo-op input:checked+span{border-color:var(--acento);
+      background:var(--acento-fraco);color:var(--acento)}
+  .periodo-op input:focus-visible+span{outline:2px solid var(--acento);
+      outline-offset:2px}
+
+  /* ------------------------------------------------ qual versão?
+     58 dos 343 títulos do acervo se repetem. Quando a linha digitada alcança
+     mais de uma, os títulos são IDÊNTICOS — o que decide é o tom e os
+     primeiros acordes, então é isso que cada opção mostra. */
+  .escolhas{grid-column:1/-1;margin-top:2px;padding:14px;
+      border:1px solid var(--acento);border-radius:var(--raio);
+      background:var(--acento-fraco)}
+  .escolhas h3{margin:0;font-size:15px;letter-spacing:-.01em}
+  .escolhas>.sub{margin:3px 0 0;color:var(--muted);font-size:13px}
+  .escolha-grupo+.escolha-grupo{margin-top:16px;padding-top:16px;
+      border-top:1px solid var(--line)}
+  .escolha-linha{margin:12px 0 8px;font-size:13.5px;color:var(--muted)}
+  .escolha-linha b{color:var(--ink);font-weight:600}
+  .versoes{display:grid;gap:6px}
+  .versao{display:block}
+  .versao input{position:absolute;opacity:0;width:0;height:0}
+  .versao-cartao{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;
+      align-items:center;padding:10px 12px;border:1px solid var(--line);
+      border-radius:var(--raio);background:var(--surface);cursor:pointer}
+  .versao input:checked+.versao-cartao{border-color:var(--acento);
+      box-shadow:inset 0 0 0 1px var(--acento)}
+  .versao input:focus-visible+.versao-cartao{outline:2px solid var(--acento);
+      outline-offset:2px}
+  /* O tom é a variável da decisão: é o maior elemento do cartão. */
+  .versao-tom{grid-row:1/3;display:flex;align-items:center;justify-content:center;
+      min-width:52px;padding:8px 6px;border-radius:var(--raio);
+      background:var(--acento-fraco);color:var(--acento);
+      font-size:19px;font-weight:700;letter-spacing:-.02em}
+  .versao input:checked+.versao-cartao .versao-tom{background:var(--acento);
+      color:var(--surface)}
+  .versao-quem{min-width:0}
+  .versao-quem b{display:block;font-size:14px;font-weight:600;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .versao-quem span{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+      min-width:0;color:var(--muted);font-size:12.5px}
+  /* Os primeiros acordes: a assinatura que o músico lê de relance. */
+  .versao-cifra{display:flex;gap:9px;flex-wrap:wrap;
+      font-family:ui-monospace,Menlo,monospace;font-size:13px;
+      color:var(--ink);opacity:.75}
+  .versao-cifra .sem-acorde{opacity:.6;font-style:italic;font-family:inherit}
+  /* O capotraste é instrução de execução, não identidade: fica discreto, na
+     mesma linha da legenda, sem virar um terceiro item da grade do cartão. */
+  .versao-capo{padding:1px 7px;border-radius:999px;background:var(--acento-fraco);
+      color:var(--acento);font-size:11px;font-weight:600;font-style:normal}
+  /* Com versões para escolher o modal precisa de largura: a cifra tem que
+     caber numa linha, é nela que a escolha se decide. */
+  .modal-largo{max-width:min(760px,94vw)}
+  .modal-largo .form-criar{max-height:min(72vh,760px);overflow-y:auto}
+  @media (max-width:560px){
+    .versao-cartao{grid-template-columns:auto 1fr}
+    .versao-cifra{grid-column:1/-1;margin-top:2px}
+    .versao-tom{grid-row:auto;min-width:46px;font-size:17px}
+  }
+
   /* ------------------------------------------------ agenda */
   .lista-cultos{margin-top:6px}
   .lista-cultos .vazio{padding:22px 4px}
@@ -493,6 +569,42 @@ const CSS_PREPARO = `
   .domingos [data-estado=realizado] .rot{color:var(--viva)}
   /* Hoje ganha anel, não cor: cor aqui já significa preparado. */
   .domingos [data-hoje]{box-shadow:0 0 0 2px var(--acento)}
+
+  /* ---- domingo com mais de um culto (manhã e noite)
+     UM cartão, dividido: o dia em cima, os períodos embaixo, metade para cada.
+     O envoltório é o cartão (borda, fundo, raio) e toma o lugar que a célula
+     ocupava na grade; a célula do dia vira o topo, sem moldura própria. A fita
+     não pode ser filha da célula (seria <a> dentro de <a>) nem irmã solta
+     (viraria mais uma "célula" no grid) — por isso o envoltório. */
+  .dia-varios{display:flex;flex-direction:column;min-width:0;min-height:104px;
+      border-radius:12px;border:1px solid var(--line);background:var(--surface);
+      overflow:hidden}
+  /* O topo perde borda, fundo e raio: quem os tem agora é o cartão inteiro. */
+  .domingos .dia-varios>[data-dia]{flex:1 1 auto;min-height:0;gap:4px;
+      padding:12px 8px;border:0;border-radius:0;background:none}
+  .domingos .dia-varios>[data-dia]:hover{background:var(--acento-fraco)}
+  /* A metade de baixo: dois períodos lado a lado, a régua entre eles. */
+  .periodos-dia{display:flex;flex:0 0 auto;border-top:1px solid var(--line)}
+  /* Cada período é um link de verdade — é o único caminho até o culto da noite
+     a partir da grade. A altura e a direção vêm explícitas porque a regra
+     genérica das células (104px, coluna) alcançaria estes links também. */
+  .domingos .periodos-dia a{flex:1 1 0;height:38px;min-height:0;min-width:0;
+      flex-direction:row;padding:6px 4px;border:0;border-radius:0;
+      background:none;color:var(--muted);font-size:12px;font-weight:600;
+      text-align:center;text-decoration:none;display:flex;align-items:center;
+      justify-content:center;overflow:hidden;text-overflow:ellipsis;
+      white-space:nowrap}
+  /* A divisória do meio — é ela que faz o "dividido ao meio" se ler. */
+  .domingos .periodos-dia a+a{border-left:1px solid var(--line)}
+  /* Pronto usa o mesmo verde do dia preparado — a grade já ensinou essa cor. */
+  .domingos .periodos-dia a[data-pronto="1"]{background:var(--viva-fraca);
+      color:var(--viva)}
+  .domingos .periodos-dia a:hover{background:var(--acento-fraco);
+      color:var(--acento)}
+  /* O cartão inteiro responde ao estado do dia, como as células simples. */
+  .domingos .dia-varios[data-estado=preparado]{background:var(--viva-fraca);
+      border-color:transparent}
+  .domingos [data-hoje-dia]{box-shadow:0 0 0 2px var(--acento)}
 
   /* O próximo culto é o CTA da página — cartão inteiro em acento fraco. */
   .proximo{background:var(--acento-fraco);border-color:transparent}
@@ -944,7 +1056,11 @@ export function paginaCulto(
   culto: Culto,
   entradas: EntradaCulto[],
   atual: number,
+  extra: { irmaos?: readonly Culto[] } = {},
 ): string {
+  // Os outros períodos do mesmo dia, criados na mesma submissão. Este culto
+  // abre; os irmãos ficam registrados no aparelho e aparecem na agenda.
+  const irmaos = extra.irmaos ?? [];
   // **O culto novo não tem ordem canônica.** As entradas dele são a setlist
   // que acabou de chegar pela URL — usá-las como "ordem original" faria o
   // script concluir "nada mudou" e apagar o rascunho a cada visita, que é
@@ -1096,6 +1212,22 @@ export function paginaCulto(
     '<button class="btn btn-fantasma" id=encerrar hidden type=button>Encerrar culto</button>' +
     '</div></header>' +
     (culto.novo ? DIALOGO_SAIR : '') +
+    // Quem marcou manhã e noite precisa ver que os dois existem — e chegar no
+    // outro sem voltar para a agenda. A setlist saiu igual; daqui em diante
+    // cada um é um culto, e mudar este não mexe no outro.
+    (irmaos.length
+      ? '<p class=rascunho data-estado=irmaos><b>' +
+        `${irmaos.length + 1} cultos criados</b> — mesma setlist, um por período. ` +
+        'Cada um segue por conta a partir daqui. ' +
+        irmaos
+          .map(
+            (c) =>
+              `<a class=btn href="${esc(`/culto/${segmentoCulto(c)}?${new URLSearchParams({ ...identidadeDoCulto(c), ...(entradas.length ? { ordem: codificarOrdem(entradas) } : {}) })}`)}">` +
+              `Abrir ${esc(c.periodo ?? c.nome)}</a>`,
+          )
+          .join('') +
+        '</p>'
+      : '') +
     (culto.novo
       ? '<p class=rascunho data-estado=alterada id=faixa-salvo><b>Culto novo</b> — ' +
         '<span id=estado-salvo>existe neste aparelho e no link; o servidor não guarda nada.</span> ' +
@@ -1127,7 +1259,8 @@ export function paginaCulto(
     css: CSS_PAINEL,
     miolo,
     largo: true,
-    scripts: SCRIPT_FILTRO + SCRIPT_MENU_TOM + SCRIPT_ATALHOS + scriptCulto(culto, canonica),
+    scripts:
+      SCRIPT_FILTRO + SCRIPT_MENU_TOM + SCRIPT_ATALHOS + scriptCulto(culto, canonica, irmaos),
   });
 }
 
@@ -1139,11 +1272,27 @@ export function paginaCulto(
  * sobreviver a um recarregamento, (2) o estado ao vivo/encerrado, e (3) o
  * link pronto para copiar. `localStorage` pode lançar — tudo em try/catch.
  */
-function scriptCulto(culto: Culto, canonica: string): string {
+function scriptCulto(culto: Culto, canonica: string, irmaos: readonly Culto[] = []): string {
+  // O irmão como a agenda o guarda. Vai junto porque o servidor não guarda
+  // culto: sem entrar no índice do aparelho agora, o culto da noite se perde
+  // quando esta aba fechar.
+  const registroIrmaos = irmaos.map((c) => ({
+    nome: c.nome,
+    rotulo: c.rotulo,
+    periodo: c.periodo,
+    titulo: c.titulo ?? null,
+    tema: c.tema ?? null,
+    data: c.dataISO ?? null,
+    id: new URLSearchParams(identidadeDoCulto(c)).toString(),
+    salvo: null,
+    em: null,
+  }));
+
   return `<script>
 (function(){
   var NOME=${JSON.stringify(culto.nome)};
   var IDX=${JSON.stringify(INDICE_NOVOS)};
+  var IRMAOS=${JSON.stringify(registroIrmaos)};
   // A chave inclui o segmento: culto novo e culto do repertório com o mesmo
   // nome são coisas diferentes e não podem dividir rascunho.
   var K='cifras:culto:'+${JSON.stringify(culto.novo ? 'novo/' : '')}+NOME;
@@ -1165,6 +1314,23 @@ function scriptCulto(culto: Culto, canonica: string): string {
     // apagar o carimbo de "salvo".
     var antes=null;
     idx=idx.filter(function(c){if(c&&c.nome===NOME){antes=c;return false}return true});
+    // Os irmãos entram primeiro, para o culto aberto ficar no topo da agenda.
+    // Um irmão que já existe no aparelho não é reescrito: ele pode já ter
+    // setlist própria, e "manhã e noite saíram iguais" não autoriza apagá-la.
+    for(var j=IRMAOS.length-1;j>=0;j--){
+      var ir=IRMAOS[j];
+      var tem=false;
+      for(var q=0;q<idx.length;q++)if(idx[q]&&idx[q].nome===ir.nome)tem=true;
+      if(!tem){
+        idx.unshift(ir);
+        // A setlist do irmão também é gravada — "mesma setlist, um por
+        // período" é a promessa que a criação fez. Sem isto o culto da noite
+        // nascia vazio no aparelho e a agenda o mostrava como "setlist vazia",
+        // mesmo tendo sido criado junto com a manhã, que estava cheia.
+        // Só na criação: irmão que já existia não é tocado, acima.
+        if(ordem)por('cifras:culto:novo/'+ir.nome,ordem);
+      }
+    }
     idx.unshift({nome:NOME,rotulo:${JSON.stringify(culto.rotulo)},periodo:${JSON.stringify(culto.periodo)},
       titulo:${JSON.stringify(culto.titulo ?? null)},tema:${JSON.stringify(culto.tema ?? null)},
       data:${JSON.stringify(culto.dataISO ?? null)},
@@ -1529,7 +1695,12 @@ function hojeISO(agora = new Date()): string {
 export interface RascunhoCulto {
   nome?: string;
   data?: string;
-  periodo?: string;
+  /**
+   * Os períodos marcados. Plural porque manhã e noite do mesmo domingo
+   * costumam ter a mesma setlist — marcar os dois cria os dois cultos, com o
+   * mesmo ponto de partida e vida própria a partir dali.
+   */
+  periodos?: readonly string[];
   tema?: string;
   musicas?: string;
 }
@@ -1548,20 +1719,22 @@ export interface RascunhoCulto {
  * cliques para montar cinco músicas (`site/setlistTexto.ts`). Ela vira o
  * `?ordem=` no mesmo redirecionamento; não é campo guardado em lugar nenhum.
  */
-function formCriarCulto(v: RascunhoCulto = {}): string {
-  const escolhido = (chave: string) => (v.periodo === chave ? ' selected' : '');
-  // O `value=""` na primeira opção é o que faz o `required` do `<select>`
-  // valer: sem ele o navegador considera a lista sempre respondida.
-  const opcoes = [
-    `<option value="" disabled${v.periodo ? '' : ' selected'}>Escolha o período</option>`,
-  ]
-    .concat(
-      PERIODOS_OFERECIDOS.map(
-        (chave) =>
-          `<option value="${esc(chave)}"${escolhido(chave)}>${esc(PERIODOS[chave]!)}</option>`,
-      ),
-    )
-    .join('');
+function formCriarCulto(
+  v: RascunhoCulto = {},
+  ambiguas: readonly ProblemaSetlist[] = [],
+  escolhas: Readonly<Record<string, string>> = {},
+): string {
+  const marcados = new Set(v.periodos ?? []);
+  // Caixa, não lista: manhã e noite do mesmo dia são dois cultos, e marcar os
+  // dois é o caminho normal de quem repete a setlist. `<select>` obrigava a
+  // escolher um e refazer tudo para o outro.
+  const periodos = PERIODOS_OFERECIDOS.map(
+    (chave) =>
+      '<label class=periodo-op>' +
+      `<input type=checkbox name=periodo value="${esc(chave)}"` +
+      `${marcados.has(chave) ? ' checked' : ''}>` +
+      `<span>${esc(PERIODOS[chave]!)}</span></label>`,
+  ).join('');
 
   return (
     '<form class=form-criar method=get action="/culto/novo">' +
@@ -1569,7 +1742,8 @@ function formCriarCulto(v: RascunhoCulto = {}): string {
     `<input class=campo name=nome maxlength=60 autocomplete=off value="${esc(v.nome ?? '')}" ` +
     'placeholder="Culto de domingo"></label>' +
     `<label>Data<input class=campo type=date name=data required value="${esc(v.data || hojeISO())}"></label>` +
-    `<label>Período<select class=campo name=periodo required>${opcoes}</select></label>` +
+    '<fieldset class=periodos><legend>Período <span class=opc>(marque os que tiverem esta setlist)</span></legend>' +
+    `<div class=periodo-linha>${periodos}</div></fieldset>` +
     '<label class=larga>Tema <span class=opc>(opcional)</span>' +
     `<input class=campo name=tema maxlength=40 autocomplete=off value="${esc(v.tema ?? '')}" ` +
     'placeholder="Gratidão"></label>' +
@@ -1577,11 +1751,171 @@ function formCriarCulto(v: RascunhoCulto = {}): string {
     '<textarea class="campo campo-alto" name=musicas rows=6 autocomplete=off ' +
     'placeholder="VITORIOSO ÉS - G&#10;QUEBRANTADO (C)&#10;TEU TOQUE">' +
     `${esc(v.musicas ?? '')}</textarea></label>` +
+    blocoEscolhas(ambiguas, escolhas) +
     '<div class=modal-acoes>' +
     '<button class=btn type=button data-fechar hidden>Cancelar</button>' +
-    '<button class="btn btn-forte" type=submit>Criar culto</button>' +
+    `<button class="btn btn-forte" type=submit>${ambiguas.length ? 'Confirmar e criar' : 'Criar culto'}</button>` +
     '</div></form>'
   );
+}
+
+/**
+ * A pergunta que o acervo faz quando uma linha alcança mais de uma música.
+ *
+ * **É uma pergunta, não um erro.** 58 dos 343 títulos do acervo se repetem —
+ * "VITORIOSO ÉS" tem seis transcrições — e nesses casos os títulos são
+ * idênticos: quem digitou não escreveu nada errado, e não há texto que
+ * desempate. O que separa uma versão da outra é o **tom** e os **acordes**,
+ * então é isso que a tela mostra, com a cifra de verdade em cada opção.
+ *
+ * Cada linha ambígua vira um grupo de rádios; a resposta volta em
+ * `escolha=LINHA=slug`. Rádio de verdade (não link) porque um culto pode ter
+ * várias linhas ambíguas, e resolver uma de cada vez, recarregando, seria
+ * pior que a trava que isto substitui.
+ */
+function blocoEscolhas(
+  ambiguas: readonly ProblemaSetlist[],
+  escolhas: Readonly<Record<string, string>>,
+): string {
+  if (ambiguas.length === 0) return '';
+
+  const grupos = ambiguas
+    .map((p) => {
+      const candidatas = p.candidatas ?? [];
+      const escolhida = escolhas[p.linha];
+      // Duas versões podem ficar com o cartão idêntico: mesmo tom e mesmos
+      // acordes (o acervo tem duas "VITORIOSO ÉS" em G assim). Aí nada do que
+      // está na tela desempata, e o nome do arquivo é o único lugar onde a
+      // diferença está escrita. Só nesse caso ele aparece — mostrar slug
+      // sempre seria expor o encanamento a quem não precisa dele.
+      const assinatura = (m: MusicaIndexada) => `${m.tom}|${primeirosAcordes(m)}`;
+      const contagem = new Map<string, number>();
+      for (const m of candidatas) {
+        contagem.set(assinatura(m), (contagem.get(assinatura(m)) ?? 0) + 1);
+      }
+
+      const opcoes = candidatas
+        .map((m, i) => {
+          // Sem nada escolhido, a primeira vem marcada: o acervo lista a
+          // versão sem sufixo primeiro, que é a que a banda tocou mais.
+          const marcada = escolhida ? m.slug === escolhida : i === 0;
+          const legenda = [
+            m.artista,
+            m.fonte && m.numero ? `${m.fonte} ${m.numero}` : '',
+            (contagem.get(assinatura(m)) ?? 0) > 1 ? m.slug : '',
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          return (
+            '<label class=versao>' +
+            `<input type=radio name=escolha value="${esc(`${p.linha}=${m.slug}`)}"` +
+            `${marcada ? ' checked' : ''}>` +
+            '<span class=versao-cartao>' +
+            `<span class=versao-tom>${esc(m.tom)}</span>` +
+            '<span class=versao-quem>' +
+            `<b>${esc(m.titulo)}</b>` +
+            // O capotraste, quando a transcrição o anuncia. É a diferença
+            // entre duas versões que de resto são a mesma música no mesmo tom:
+            // o violonista toca outra forma e soa igual. Vai junto da legenda
+            // para o cartão continuar com dois filhos e a grade não quebrar.
+            ((capo) =>
+              legenda || capo
+                ? '<span>' +
+                  esc(legenda) +
+                  (capo
+                    ? `${legenda ? ' ' : ''}<em class=versao-capo>${esc(capo)}</em>`
+                    : '') +
+                  '</span>'
+                : '')(capotrasteDe(m)) +
+            '</span>' +
+            // A prova real: os primeiros acordes. É o que distingue duas
+            // transcrições do mesmo título, e o que o músico reconhece.
+            `<span class=versao-cifra>${primeirosAcordes(m)}</span>` +
+            '</span></label>'
+          );
+        })
+        .join('');
+
+      return (
+        '<div class=escolha-grupo>' +
+        `<p class=escolha-linha>Você escreveu <b>${esc(p.linha)}</b> — ` +
+        `${candidatas.length} versões no acervo. Qual é a de vocês?</p>` +
+        `<div class=versoes>${opcoes}</div></div>`
+      );
+    })
+    .join('');
+
+  return (
+    '<section class=escolhas>' +
+    `<h3>${ambiguas.length === 1 ? 'Uma linha tem mais de uma versão' : `${ambiguas.length} linhas têm mais de uma versão`}</h3>` +
+    `<p class=sub>Os títulos são iguais; o tom e os acordes é que mudam.</p>${grupos}` +
+    '</section>'
+  );
+}
+
+/**
+ * O capotraste que a transcrição anuncia ("CAPOTRASTE NA PRIMEIRA CASA"),
+ * normalizado para caber no cartão.
+ *
+ * Vem do texto porque é lá que está: o `.cifra` não tem campo de capotraste, e
+ * quem transcreveu escreveu a instrução como linha de letra. **Não se infere**
+ * do descompasso entre o tom e o primeiro acorde — música pode começar fora da
+ * tônica, e chamar isso de capotraste seria inventar dado sobre a cifra.
+ */
+function capotrasteDe(m: MusicaIndexada): string | null {
+  for (const [tipo, dado] of m.corpo ?? []) {
+    if (tipo !== 'let' || typeof dado !== 'string') continue;
+    if (/capotraste|capo\b/i.test(dado)) {
+      // "CAPOTRASTE NA PRIMEIRA CASA" vira "capotraste na 1ª casa": o cartão
+      // tem uma linha, e a instrução inteira não cabe em caixa alta.
+      const casa = /\b(primeir|segund|terceir|quart|quint|sext|s[eé]tim|oitav)/i.exec(dado);
+      const numero = casa
+        ? ['primeir', 'segund', 'terceir', 'quart', 'quint', 'sext', 'setim', 'oitav'].indexOf(
+            casa[1]!.toLowerCase().replace('é', 'e'),
+          ) + 1
+        : Number(/\b(\d{1,2})[ªa]?\s*casa/i.exec(dado)?.[1] ?? 0);
+      return numero > 0 ? `capotraste na ${numero}ª casa` : 'com capotraste';
+    }
+  }
+  return null;
+}
+
+/**
+ * Os primeiros acordes distintos da música — a assinatura que o músico lê de
+ * relance para reconhecer a versão. Só acorde: a letra é obra de terceiro e
+ * não precisa aparecer aqui para a escolha funcionar.
+ */
+function primeirosAcordes(m: MusicaIndexada, quantos = 6): string {
+  const vistos: string[] = [];
+  const engolir = (texto: string) => {
+    // `|`, `%`, `:` são estrutura de compasso, não acorde (regra 2 do
+    // CLAUDE.md). Repetição imediata também não entra: "| Db | % |" é um
+    // acorde só para quem está reconhecendo a música de relance.
+    for (const bruto of texto.split(/[\s|]+/)) {
+      const limpo = bruto.trim();
+      if (!limpo || limpo === '%' || /^[:|.\-]+$/.test(limpo)) continue;
+      if (limpo !== vistos[vistos.length - 1]) vistos.push(limpo);
+      if (vistos.length >= quantos) return true;
+    }
+    return false;
+  };
+
+  for (const [tipo, dado] of m.corpo ?? []) {
+    if (tipo === 'cif' && typeof dado === 'string') {
+      if (engolir(dado)) break;
+    } else if (tipo === 'pos' && typeof dado === 'string') {
+      // Linha posicional: o acorde fica sobre a sílaba, e o que sobra entre
+      // eles é espaçamento — separar por espaço já devolve só os acordes.
+      if (engolir(dado)) break;
+    } else if (tipo === 'labc' && Array.isArray(dado)) {
+      // `[Intro]` mais a progressão: o rótulo fica de fora, a cifra entra.
+      if (engolir(String(dado[1] ?? ''))) break;
+    }
+  }
+
+  return vistos.length
+    ? vistos.map((a) => `<span>${esc(a)}</span>`).join('')
+    : '<span class=sem-acorde>sem acordes no arquivo</span>';
 }
 
 /**
@@ -1591,9 +1925,18 @@ function formCriarCulto(v: RascunhoCulto = {}): string {
  * script que o mostra, e por isso o `<noscript>` traz o formulário na página.
  * O painel inteiro funciona sem JS e abrir culto não podia ser a exceção.
  */
-function blocoModalCulto(erros: readonly string[], rascunho: RascunhoCulto): string {
+function blocoModalCulto(
+  erros: readonly string[],
+  rascunho: RascunhoCulto,
+  ambiguas: readonly ProblemaSetlist[] = [],
+  escolhas: Readonly<Record<string, string>> = {},
+): string {
   return (
-    '<dialog class=modal id=dlg-culto aria-labelledby=tit-criar>' +
+    // Com versões para escolher o modal cresce: as cifras precisam de largura
+    // para caber numa linha, e é nelas que a escolha se decide.
+    (ambiguas.length
+      ? '<dialog class="modal modal-largo" id=dlg-culto aria-labelledby=tit-criar>'
+      : '<dialog class=modal id=dlg-culto aria-labelledby=tit-criar>') +
     '<div class=modal-topo><h2 id=tit-criar>Novo culto</h2>' +
     // Como o culto é guardado (aparelho + link, sem estado no servidor) é
     // assunto de Configurações, não da tela de quem está marcando um culto.
@@ -1602,12 +1945,12 @@ function blocoModalCulto(erros: readonly string[], rascunho: RascunhoCulto): str
     (erros.length
       ? `<div class=erro role=alert><ul>${erros.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>`
       : '') +
-    formCriarCulto(rascunho) +
+    formCriarCulto(rascunho, ambiguas, escolhas) +
     '</dialog>' +
     '<noscript><section class="cartao criar-culto">' +
     '<div class=cartao-topo><div class=quem><h2>Novo culto</h2>' +
     '<p class=sub>Sem JavaScript o formulário abre aqui mesmo.</p></div></div>' +
-    formCriarCulto(rascunho) +
+    formCriarCulto(rascunho, ambiguas, escolhas) +
     '</section></noscript>'
   );
 }
@@ -1748,8 +2091,18 @@ const SCRIPT_MODAL_CULTO = `<script>
     });
   });
   // O 400 do formulário volta com o modal já aberto: o erro tem que estar
-  // onde o usuário errou, não numa tela que ele fechou.
-  if(dlg.querySelector('.erro'))mostrar();
+  // onde o usuário errou, não numa tela que ele fechou. A pergunta sobre qual
+  // versão da música reabre pelo mesmo motivo — e leva o foco para ela, que é
+  // o que falta responder, não para o nome do culto lá em cima.
+  var perguntas=dlg.querySelector('.escolhas');
+  if(dlg.querySelector('.erro')||perguntas){
+    mostrar();
+    if(perguntas){
+      perguntas.scrollIntoView({block:'nearest'});
+      var primeiro=perguntas.querySelector('input[type=radio]');
+      if(primeiro)primeiro.focus();
+    }
+  }
 })();
 </script>`;
 
@@ -2026,14 +2379,27 @@ const SCRIPT_HOME = `<script>
       periodo:c.periodo,titulo:c.titulo,rotulo:c.rotulo};
   }
 
+  // Um dia pode ter mais de um culto — manhã e noite do mesmo domingo são
+  // dois cultos, com setlist e link próprios. Por isso a chave guarda a LISTA:
+  // ficar só com o "melhor" escondia o outro, e o da noite não tinha como ser
+  // alcançado pela grade.
   var porData={};
   idx().forEach(function(c){
     if(!c||!c.data)return;
-    var r=resolver(c);
-    // Dois cultos no mesmo dia (manhã e noite): o dia conta como preparado
-    // se qualquer um deles tiver setlist.
-    if(!porData[c.data]||r.n>porData[c.data].n)porData[c.data]=r;
+    (porData[c.data]=porData[c.data]||[]).push(resolver(c));
   });
+  // Na ordem do dia, que é como a agenda fala: manhã, tarde, noite.
+  var ORDEM_DIA=['Manhã','Tarde','Noite'];
+  Object.keys(porData).forEach(function(d){
+    porData[d].sort(function(a,b){
+      return ORDEM_DIA.indexOf(a.periodo)-ORDEM_DIA.indexOf(b.periodo);
+    });
+  });
+  /** O culto que representa o dia: o primeiro com setlist, senão o primeiro. */
+  function principal(lista){
+    for(var i=0;i<lista.length;i++)if(lista[i].n>0)return lista[i];
+    return lista[0];
+  }
 
   var HOJE=hojeISO();
 
@@ -2042,16 +2408,57 @@ const SCRIPT_HOME = `<script>
     var prontos=0;
     Array.prototype.forEach.call(celulas,function(a){
       var d=a.getAttribute('data-data');
-      var r=porData[d];
-      if(r&&a.getAttribute('data-estado')!=='realizado'){
-        var estado=r.n>0?'preparado':'pendente';
+      var lista=porData[d];
+      if(lista&&lista.length&&a.getAttribute('data-estado')!=='realizado'){
+        var r=principal(lista);
+        // O dia está preparado quando TODO culto dele tem setlist. Com a manhã
+        // pronta e a noite vazia ainda falta trabalho, e dizer "Preparado" ali
+        // esconderia justamente o que falta fazer.
+        var faltando=lista.filter(function(x){return x.n===0}).length;
+        var estado=r.n>0&&faltando===0?'preparado':'pendente';
         a.setAttribute('data-estado',estado);
         a.href=r.href;
         a.removeAttribute('data-abrir-culto');
         var rot=a.querySelector('.rot');
-        if(rot)rot.textContent=r.n>0?'Preparado':'Em preparo';
-        a.setAttribute('aria-label',a.querySelector('b').textContent+' — '+
-          (r.n>0?'Preparado, '+r.n+(r.n===1?' música':' músicas'):'Em preparo'));
+        // Com os períodos desenhados embaixo, "1/2 preparados" repetiria o que
+        // as metades já mostram (verde/apagado). O topo diz quantos cultos o
+        // dia tem — que é o que as metades NÃO dizem de relance.
+        var texto=lista.length>1
+          ?lista.length+' cultos'
+          :(r.n>0?'Preparado':'Em preparo');
+        if(rot)rot.textContent=texto;
+        a.setAttribute('aria-label',a.querySelector('b').textContent+' — '+texto+
+          (lista.length>1?': '+lista.map(function(x){
+            return x.periodo+(x.n?' com '+x.n+(x.n===1?' música':' músicas'):' sem setlist');
+          }).join(', '):r.n>0?', '+r.n+(r.n===1?' música':' músicas'):''));
+        // Os períodos do dia, cada um com seu link: sem isto o culto da noite
+        // não tinha como ser alcançado pela grade.
+        //
+        // A fita vai num envoltório junto com a célula — não DENTRO dela, que
+        // seria <a> dentro de <a>, nem como irmã solta, que viraria mais uma
+        // "célula" no grid. O envoltório ocupa o lugar que a célula ocupava.
+        if(lista.length>1&&!a.parentNode.classList.contains('dia-varios')){
+          var caixa=document.createElement('div');
+          caixa.className='dia-varios';
+          a.parentNode.insertBefore(caixa,a);
+          caixa.appendChild(a);
+          // A moldura passa a ser do cartão: é ele que mostra o estado do dia
+          // e o anel de hoje, porque a célula lá dentro perdeu a borda.
+          caixa.setAttribute('data-estado',estado);
+          if(a.hasAttribute('data-hoje'))caixa.setAttribute('data-hoje-dia','');
+          var fita=document.createElement('span');
+          fita.className='periodos-dia';
+          lista.forEach(function(x){
+            var p=document.createElement('a');
+            p.href=x.href;
+            p.textContent=x.periodo||'Culto';
+            p.setAttribute('data-pronto',x.n>0?'1':'0');
+            p.title=(x.periodo||'Culto')+(x.n?' — '+x.n+(x.n===1?' música':' músicas'):' — sem setlist');
+            p.setAttribute('aria-label',p.title);
+            fita.appendChild(p);
+          });
+          caixa.appendChild(fita);
+        }
       }
       var e=a.getAttribute('data-estado');
       if(e==='preparado'||e==='realizado')prontos++;
@@ -2075,7 +2482,13 @@ const SCRIPT_HOME = `<script>
     // O servidor já resolveu este dia pelo repertório: só se mexe se um culto
     // do aparelho for ANTES dele.
     if(doServidor&&!trocou)return;
-    var r=porData[alvo];
+    var doDia=porData[alvo]||[];
+    // Com manhã e noite no mesmo dia, o cartão fala do primeiro que ainda
+    // precisa de trabalho — é o que o "próximo culto" existe para responder.
+    // Se os dois estão prontos, fala do primeiro do dia.
+    var r=doDia.length
+      ?(doDia.filter(function(x){return x.n===0})[0]||doDia[0])
+      :undefined;
     var quando=document.getElementById('prox-quando');
     if(quando)quando.textContent=(r&&r.titulo)?r.titulo:extenso(alvo);
     var fatos=document.getElementById('prox-fatos');
@@ -2083,6 +2496,11 @@ const SCRIPT_HOME = `<script>
     if(r&&r.titulo)partes.push(extenso(alvo));
     if(r&&r.periodo)partes.push(r.periodo);
     if(r&&r.n)partes.push(r.n+(r.n===1?' música':' músicas'));
+    // O outro culto do dia não pode sumir do cartão: quem marcou manhã e
+    // noite precisa ver que a noite existe, mesmo com a manhã em foco.
+    if(doDia.length>1){
+      partes.push(doDia.length+' cultos neste dia');
+    }
     if(fatos){
       fatos.hidden=partes.length===0;
       fatos.innerHTML='';
@@ -2096,19 +2514,25 @@ const SCRIPT_HOME = `<script>
     var acao=document.getElementById('prox-acao');
     if(r&&r.n>0){
       if(selo)selo.setAttribute('data-estado','pronto');
-      if(tit)tit.textContent='Culto preparado';
+      if(tit)tit.textContent=doDia.length>1?'Cultos do dia preparados':'Culto preparado';
       if(sub)sub.textContent='Confira a ordem ou abra no celular para tocar.';
       if(acao){
         acao.href=r.href;
         acao.removeAttribute('data-abrir-culto');
-        acao.innerHTML='Abrir culto <span aria-hidden="true">\\u2192</span>';
+        acao.innerHTML='Abrir '+(doDia.length>1?(r.periodo||'culto'):'culto')+
+          ' <span aria-hidden="true">\\u2192</span>';
       }
     }else if(r){
-      if(sub)sub.textContent='O culto existe neste aparelho, mas a setlist está vazia.';
+      // Com dois cultos no dia, dizer só "a setlist está vazia" esconderia que
+      // o outro já está pronto — e o que falta é justamente este.
+      if(sub)sub.textContent=doDia.length>1
+        ?'Falta montar a setlist '+(r.periodo?'da '+r.periodo.toLowerCase():'de um dos cultos')+'.'
+        :'O culto existe neste aparelho, mas a setlist está vazia.';
       if(acao){
         acao.href=r.href;
         acao.removeAttribute('data-abrir-culto');
-        acao.innerHTML='Montar setlist <span aria-hidden="true">\\u2192</span>';
+        acao.innerHTML='Montar '+(doDia.length>1&&r.periodo?r.periodo.toLowerCase():'setlist')+
+          ' <span aria-hidden="true">\\u2192</span>';
       }
     }else if(acao){
       acao.href='/culto/novo?data='+alvo;
@@ -2132,7 +2556,14 @@ const SCRIPT_HOME = `<script>
  */
 export function paginaAgenda(
   rep: Repertorio,
-  opcoes: { erros?: readonly string[]; rascunho?: RascunhoCulto; agora?: Date } = {},
+  opcoes: {
+    erros?: readonly string[];
+    rascunho?: RascunhoCulto;
+    agora?: Date;
+    /** Linhas da setlist que alcançam mais de uma música: viram pergunta. */
+    ambiguas?: readonly ProblemaSetlist[];
+    escolhas?: Readonly<Record<string, string>>;
+  } = {},
 ): string {
   const agora = opcoes.agora ?? new Date();
 
@@ -2161,7 +2592,12 @@ export function paginaAgenda(
       blocoListaLocal('futuros', 'Próximos cultos marcados', '') +
       acoesRapidas() +
       tabelaUltimos(rep) +
-      blocoModalCulto(opcoes.erros ?? [], opcoes.rascunho ?? {}),
+      blocoModalCulto(
+        opcoes.erros ?? [],
+        opcoes.rascunho ?? {},
+        opcoes.ambiguas ?? [],
+        opcoes.escolhas ?? {},
+      ),
     scripts: SCRIPT_MODAL_CULTO + SCRIPT_CULTOS_LOCAIS + SCRIPT_HOME,
   });
 }

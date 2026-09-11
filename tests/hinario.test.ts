@@ -54,17 +54,20 @@ test('acervo: todo .cifra com fonte declara um numero, e vice-versa', () => {
   }
 });
 
-test('acervo: os hinos do HCC que já existiam estão marcados, não escondidos', () => {
+test('acervo: os hinos do HCC estão marcados, não escondidos', () => {
   const doHcc = musicas.filter(({ musica }) => obterCampo(musica.cabecalho, 'fonte') === 'HCC');
-  // Sete arquivos citam o HCC pelo nome, mas só seis são hino. O sétimo é um
-  // medley de duas músicas, e apenas a segunda ("A TI, Ó DEUS") é o hino 8 —
-  // marcar o arquivo inteiro com `numero: 8` seria dado certo no lugar
-  // errado, o mesmo defeito que este arquivo existe para impedir. Ele fica
-  // sem os campos até o split de medley (`docs/rumo.md`, etapa 4); o número
-  // sobrevive no rótulo da seção, `[A TI, Ó DEUS (08 HCC)]`.
-  assert.equal(doHcc.length, 6, `esperava 6 hinos marcados com fonte: HCC, achei ${doHcc.length}`);
-  const numeros = doHcc.map(({ musica }) => obterCampo(musica.cabecalho, 'numero')).sort();
-  assert.deepEqual(numeros, ['25', '25', '329', '422', '52', '66']);
+  // Nove hinos: os seis que citavam o HCC no nome do arquivo, mais três que o
+  // índice de `bruto/hcc-indice.tsv` encontrou no acervo sem marca nenhuma
+  // (80, 25 em E, e a segunda transcrição do 329).
+  //
+  // Dois medleys ficam de fora de propósito, e é a mesma regra nos dois: só
+  // METADE do arquivo é hino ("A TI, Ó DEUS" é o 8; "Foi na cruz" é o 293),
+  // e marcar o arquivo inteiro seria dado certo no lugar errado — o defeito
+  // que este arquivo existe para impedir. Entram quando houver split de
+  // medley (`docs/rumo.md`, etapa 4).
+  assert.equal(doHcc.length, 9, `esperava 9 hinos marcados com fonte: HCC, achei ${doHcc.length}`);
+  const numeros = doHcc.map(({ musica }) => Number(obterCampo(musica.cabecalho, 'numero'))).sort((a, b) => a - b);
+  assert.deepEqual(numeros, [25, 25, 25, 52, 66, 80, 329, 329, 422]);
 });
 
 test('acervo: nenhum arquivo volta a guardar o número do hinário dentro de artista', () => {
@@ -106,7 +109,7 @@ test('hinário: a tela lista por número e não repete o hinário em toda linha'
   const rep = carregarRepertorio(REPERTORIO_JSON, ACERVO);
   const html = paginaHinario(rep);
   const numerosNaTela = [...html.matchAll(/<span class=num-hino>(\d+)<\/span>/g)].map((m) => Number(m[1]));
-  assert.deepEqual(numerosNaTela, [25, 25, 52, 66, 329, 422]);
+  assert.deepEqual(numerosNaTela, [25, 25, 25, 52, 66, 80, 329, 329, 422]);
   // Com um hinário só no acervo, "HCC" em toda linha não distingue nada e o
   // número já está na coluna ao lado. A referência completa continua no
   // índice de busca, senão digitar "HCC" não acharia nada.

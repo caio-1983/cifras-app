@@ -101,6 +101,83 @@ function marcarAnotacoesSeForCifra(linha: string): string {
 }
 
 /**
+ * Recola o baixo invertido que perdeu o separador: `| Cm Bb /D |` volta a ser
+ * `| Cm Bb/D |`.
+ *
+ * Achado real na exportação do Drive — `LUGARES ALTOS` e `JESUS É O CENTRO`
+ * escrevem assim, e o `/D` solto vira "nota inválida" na importação.
+ *
+ * A regra é estreita de propósito: só cola quando o que vem ANTES do espaço
+ * termina em acorde e o que vem DEPOIS é `/` seguido de nota. `/D` sozinho não
+ * é acorde em nenhuma leitura, então não há o que essa colagem possa estragar
+ * — e a barra de compasso (`|`) nunca é atravessada, para não fundir o último
+ * acorde de um compasso com o primeiro do seguinte.
+ */
+function recolarBaixoInvertido(trecho: string): string {
+  return trecho.replace(/([A-G][#b]?[^\s|]*)\s+(\/[A-G][#b]?)(?=$|[\s|])/g, '$1$2');
+}
+
+function recolarBaixoSeForCifra(linha: string): string {
+  return sobreORegiaoDeCifra(linha, recolarBaixoInvertido);
+}
+
+/**
+ * Prosa na mesma linha do rótulo de seção vira anotação de execução:
+ * `[Refrão] Cai e vai subindo` → `[Refrão] {Cai e vai subindo}`.
+ *
+ * É a causa mais comum das pendências do Drive — 33 arquivos. Quem transcreveu
+ * escreveu a instrução de regência ao lado do rótulo, e o parser tentava lê-la
+ * como cifra ("nota inválida: e", "nota inválida: no").
+ *
+ * **Só prosa entra.** O que vem depois do rótulo é deixado como está quando:
+ *
+ * - tem `|` — é cifra de verdade (`[Ponte] | G7M | A |`, caso de EU VOU
+ *   CONSTRUIR), e quem cuida dela é `sobreORegiaoDeCifra`;
+ * - já é `{...}` — a curadoria anterior já resolveu;
+ * - é uma palavra só que se lê como acorde (`[Intro] B`) — aí é cifra sem
+ *   barra de compasso, não instrução, e envolvê-la em chaves apagaria um
+ *   acorde de verdade. Esta é a razão de a regra exigir DUAS palavras: é o
+ *   que separa `[Intro] B` de `[Refrão] Cai e vai subindo`.
+ */
+/**
+ * Prosa ANTES da primeira barra de compasso vira anotação de execução:
+ * `teclado | D | % |` → `{teclado} | D | % |`.
+ *
+ * É quem entra, ou quantas vezes se repete, escrito na frente da cifra —
+ * `reintro`, `1ª vez:`, `guitar`, `Piano+Guitarra`. Sem isto o parser lê a
+ * palavra como acorde e recusa o arquivo inteiro.
+ *
+ * **Roda depois de `normalizarLinhaDeSubtituloSeForCandidata`**, e é isso que
+ * a mantém segura: rótulo de seção conhecido (`INTRODUÇÃO`, `MODULAÇÃO`) já
+ * virou `[...]` antes de chegar aqui, então o que sobra na frente da barra é
+ * instrução de execução, não estrutura. O que não é reconhecido como rótulo
+ * NEM é acorde só pode ser anotação.
+ */
+function anotarProsaAntesDaCifra(linha: string): string {
+  const m = /^(\s*)([^|{}[\]~][^|{}[\]]*?)\s+(\|.*)$/.exec(linha);
+  if (!m) return linha;
+
+  const prefixo = m[2]!.trim();
+  // Um token só, que se lê como acorde, é cifra sem barra inicial — não é
+  // prosa. `C9 | G |` tem exatamente esta forma.
+  if (!/[A-Za-zÀ-ÿ]/.test(prefixo)) return linha;
+  if (/^[A-G][#b]?[^\s]*$/.test(prefixo)) return linha;
+  // Dois pontos no fim é pontuação da instrução ("1ª vez:"), não conteúdo.
+  return `${m[1]!}{${prefixo.replace(/:$/, '')}} ${m[3]!}`;
+}
+
+function anotarProsaAposRotulo(linha: string): string {
+  const m = /^(\s*\[[^\]\n]+\]\s+)(\S.*)$/.exec(linha);
+  if (!m) return linha;
+
+  const resto = m[2]!.trim();
+  if (resto.includes('|') || resto.startsWith('{')) return linha;
+  // Uma palavra só pode ser acorde (`[Intro] B`); duas ou mais, não.
+  if (!/\s/.test(resto)) return linha;
+  return `${m[1]!.trimEnd()} {${resto}}`;
+}
+
+/**
  * Aplica `transformar` só na parte da linha que é cifra, preservando o
  * rótulo de subtítulo quando houver — e devolve a linha intacta quando ela
  * não for cifra (letra, separador) ou for posicional.
@@ -304,9 +381,13 @@ export function importarCifraCrua(
   const semTrailing = resto.map(semEspacoNoFinal);
   const semTabs = semTrailing.map((linha) => expandirTabs(linha));
   const comSubtitulos = semTabs.map(normalizarLinhaDeSubtituloSeForCandidata);
-  const materializado = materializarSecoesReferenciadas(comSubtitulos);
+  // Depois de o rótulo existir como `[...]` e antes de a linha ser julgada
+  // posicional: é a prosa ao lado do rótulo que faria a detecção tropeçar.
+  const comProsaAnotada = comSubtitulos.map(anotarProsaAposRotulo).map(anotarProsaAntesDaCifra);
+  const materializado = materializarSecoesReferenciadas(comProsaAnotada);
   const marcado = marcarLinhasPosicionaisCruas(materializado);
-  const espacado = marcado.map(normalizarEspacamentoSeForCifra);
+  const recolado = marcado.map(recolarBaixoSeForCifra);
+  const espacado = recolado.map(normalizarEspacamentoSeForCifra);
   const anotado = espacado.map(marcarAnotacoesSeForCifra);
   const comLetraMarcada = marcarLinhasDeLetra(anotado);
   const corpoFinal = colapsarLinhasEmBrancoConsecutivas(comLetraMarcada);

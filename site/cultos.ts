@@ -84,6 +84,23 @@ export const PERIODOS: Record<string, string> = {
 /** O que o formulário oferece, na ordem do dia. */
 export const PERIODOS_OFERECIDOS = ['Manha', 'Tarde', 'Noite'] as const;
 
+/**
+ * Os períodos que vieram do formulário, na ordem do dia e sem repetição.
+ *
+ * São vários porque **manhã e noite do mesmo domingo costumam ter a mesma
+ * setlist** — e digitá-la duas vezes é trabalho que o produto pode poupar.
+ * Continuam sendo cultos distintos (nome, URL e rascunho próprios): o que se
+ * compartilha é o ponto de partida, não o culto.
+ *
+ * Fora do vocabulário conhecido nada entra: o período vira sufixo de nome, e
+ * o nome vai para a URL.
+ */
+export function periodosValidos(bruto: string | string[] | undefined): string[] {
+  const lista = bruto === undefined ? [] : Array.isArray(bruto) ? bruto : [bruto];
+  const vistos = new Set(lista.filter((p) => PERIODOS[p]));
+  return PERIODOS_OFERECIDOS.filter((p) => vistos.has(p));
+}
+
 const RE_NOME = /^(\d{2})([A-Z]{3})(?:_(.+))?$/;
 
 /** Decompõe `28AGO_Sexta`. Nome fora da convenção volta como está, sem data. */
